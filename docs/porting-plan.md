@@ -114,15 +114,41 @@ A 1:1 translation of the EventKit code does **not** exist on Windows:
 
 Realistic options:
 
-| Option | Coverage | Effort | Notes |
-|---|---|---|---|
-| **ICS/CalDAV subscriptions (recommended)** | Google, Outlook, iCloud, Fastmail… | ~1–2 weeks | Pure-Rust provider (fetch + parse `.ics`, cache, refresh). Works on *every* platform incl. iOS fallback. User pastes secret ICS URL(s) in settings. Read-only (matches current usage: display events in Upcoming/Agenda). `delete_calendar_event` can't be supported for subscribed calendars — hide the affordance on Windows. |
-| Microsoft Graph API | Microsoft accounts only | ~2–3 weeks | OAuth flow + Azure app registration; read/write. Good later addition, not v1. |
-| No calendar on Windows v1 | — | 0 | Hide calendar settings/strips behind a capability check the frontend queries (`check_calendar_access` returning a "unsupported" state). |
+| Route | User setup | Read/write | Effort | Notes |
+|---|---|---|---|---|
+| **ICS feed subscriptions (recommended v1)** | Paste secret/published calendar URL | Read-only | ~1–2 weeks | Google, Outlook, iCloud, Fastmail all expose ICS URLs. Pure-Rust provider (fetch, parse, cache, periodic refresh); no OAuth, no app registrations, no token storage. Works on *every* platform incl. iOS later. |
+| CalDAV | Server URL + app-specific password | Read/write | ~2–3 weeks | One protocol covers iCloud, Fastmail, Nextcloud. Google's CalDAV endpoint still requires OAuth, so it doesn't avoid that. |
+| Google Calendar API | Google sign-in (OAuth) | Read/write | ~2–3 weeks + Google app verification | Calendar scopes are "sensitive" — Google reviews the app before general users can authorize it. Needs secure token storage (`keyring`). |
+| Microsoft Graph (Outlook) | Microsoft sign-in (OAuth) | Read/write | ~2–3 weeks | Azure app registration; covers personal + work/school accounts. Same token-storage needs. |
+| No calendar on Windows v1 | — | — | 0 | Hide calendar settings/strips behind a capability check the frontend queries (`check_calendar_access` returning an "unsupported" state). |
 
-**Recommendation:** ship Windows v1 with calendar gated off but the `CalendarProvider` trait in
-place, then add the ICS provider as the cross-platform backend (it also de-risks iOS, where
-EventKit works but iCloud-only users may still prefer Google calendars).
+**Recommendation: ICS subscriptions as the cross-platform v1 backend.** Rationale:
+
+- It matches the app's actual calendar surface: Annado *displays* events in Upcoming/Agenda.
+  The only write operation today is `delete_calendar_event` (minor affordance, EventKit-only);
+  read-only covers ~90% of the feature for ~30% of the effort of any OAuth route.
+- One Rust implementation serves Windows, macOS, Linux, and iOS. Each OAuth route serves one
+  ecosystem and drags in token storage, consent screens, and (for Google) a verification queue.
+- **It adds to macOS too:** the `CalendarProvider` trait merges sources, so Mac keeps native
+  EventKit calendars *and* can overlay ICS subscriptions (e.g. a shared Google calendar)
+  without adding them to Calendar.app. Settings UI lists both source types uniformly.
+
+Implementation notes for the ICS provider:
+
+- Parsing: `icalendar`/`ical` crate; the hard part is **recurrence expansion**
+  (RRULE/EXDATE/RDATE + VTIMEZONE handling) — use the `rrule` crate and give it real test
+  coverage (this is where ICS implementations typically break).
+- Refresh: poll on an interval + on app focus; cache last-good response so Agenda still renders
+  offline. Note in the settings UI that Google's secret ICS feeds update on a delay
+  (minutes–hours) — "today's schedule", not live sync.
+- Hide write affordances (event delete) for subscribed calendars; keep them for EventKit
+  sources on macOS.
+- Graph/Google OAuth become an optional v2 if users want write access or one-click sign-in —
+  they slot in as additional `CalendarProvider` implementations without UI rework.
+
+Ship Windows v1 with calendar gated off but the `CalendarProvider` trait in place, then add the
+ICS provider as phase W4 (it also de-risks iOS, where EventKit works but Google-calendar users
+still benefit from ICS sources).
 
 ### 2.5 Packaging, CI, distribution
 
@@ -143,7 +169,8 @@ EventKit works but iCloud-only users may still prefer Google calendars).
 | W1 — Compiles & runs | Cfg-gate calendar, fix Cargo deps, notify feature | 1–2 days |
 | W2 — Looks right | Titlebar overlay (decorum), traffic-light spacer, fonts, shortcut labels/defaults, copy | 2–4 days |
 | W3 — Ships | CI matrix, installers, signing, manual test pass (watcher, tray, global shortcuts, deep links, notifications on real Windows) | 2–3 days |
-| W4 — Calendar parity | ICS/CalDAV provider behind `CalendarProvider` trait | 1–2 weeks |
+| W4 — Calendar parity | ICS subscription provider behind `CalendarProvider` trait (also adds ICS sources on macOS) | 1–2 weeks |
+| W5 — Optional, later | Google Calendar / Microsoft Graph OAuth providers (write access, one-click sign-in) | 2–3 weeks each, on demand |
 
 **Total: ~1–2 weeks to a polished calendar-less Windows build; +1–2 weeks for calendar.**
 
