@@ -32,6 +32,18 @@ html, body, #root {
   overflow: hidden;
 }
 
+/* Touch screens (iPad/iPhone): comfortable hit targets, and no text-callout
+   on long-press (long-press starts a drag instead) */
+@media (pointer: coarse) {
+  button, input[type="checkbox"], a {
+    min-height: 32px;
+    min-width: 32px;
+  }
+  * {
+    -webkit-touch-callout: none;
+  }
+}
+
 /* macOS title bar drag region */
 .titlebar-drag {
   -webkit-app-region: drag;

@@ -6,7 +6,7 @@ mod vault;
 
 use commands::{
     create_task, get_all_persons, get_all_projects, get_all_tags, get_person_metadata, get_task,
-    get_tasks, get_vault_path, rescan_vault, set_vault_path, toggle_task_complete,
+    get_tasks, get_vault_path, rescan_vault, set_vault_path, use_default_vault, toggle_task_complete,
     toggle_checklist_item, rename_checklist_item, delete_checklist_item, update_project_metadata, update_task, get_all_recurring_templates,
     create_recurring_template, update_recurring_template, delete_recurring_template,
     generate_recurring_instances, get_folder_paths, set_folder_paths, delete_task,
@@ -21,18 +21,26 @@ use commands::{
     set_tray_enabled, send_test_notification,
 };
 use tauri::{AppHandle, Emitter, Manager};
+#[cfg(desktop)]
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+#[cfg(desktop)]
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 use parking_lot::Mutex;
 use once_cell::sync::Lazy;
+#[cfg(desktop)]
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 static PENDING_DEEP_LINK: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+#[cfg(desktop)]
 static QUICK_ADD_SHORTCUT_ID: Lazy<Mutex<Option<u32>>> = Lazy::new(|| Mutex::new(None));
+#[cfg(desktop)]
 static SHOW_APP_SHORTCUT_ID: Lazy<Mutex<Option<u32>>> = Lazy::new(|| Mutex::new(None));
+#[cfg(desktop)]
 static TRAY_POPUP_VISIBLE: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
 
+#[cfg(desktop)]
 const DEFAULT_QUICK_ADD: &str = "meta+shift+space";
+#[cfg(desktop)]
 const DEFAULT_SHOW_APP: &str = "meta+shift+a";
 
 #[tauri::command]
@@ -41,6 +49,7 @@ fn get_pending_deep_link() -> Option<String> {
 }
 
 // Parse a keybinding string like "meta+shift+space" into Modifiers and Code
+#[cfg(desktop)]
 fn parse_keybinding(binding: &str) -> Option<(Modifiers, Code)> {
     let binding_lower = binding.to_lowercase();
     let parts: Vec<&str> = binding_lower.split('+').collect();
@@ -83,6 +92,7 @@ fn parse_keybinding(binding: &str) -> Option<(Modifiers, Code)> {
     Some((modifiers, code))
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 fn register_global_shortcuts(app: AppHandle, quick_add_binding: String, show_app_binding: String) -> Result<(), String> {
     if cfg!(debug_assertions) {
@@ -153,6 +163,15 @@ fn register_global_shortcuts(app: AppHandle, quick_add_binding: String, show_app
     Ok(())
 }
 
+// Mobile platforms have no global shortcuts; the command exists so the
+// frontend can call it unconditionally.
+#[cfg(mobile)]
+#[tauri::command]
+fn register_global_shortcuts(_quick_add_binding: String, _show_app_binding: String) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(desktop)]
 fn toggle_tray_popup(app: &AppHandle, click_pos: tauri::PhysicalPosition<f64>) {
     if let Some(popup) = app.get_webview_window("tray-popup") {
         let mut vis = TRAY_POPUP_VISIBLE.lock();
@@ -196,6 +215,7 @@ fn toggle_tray_popup(app: &AppHandle, click_pos: tauri::PhysicalPosition<f64>) {
     }
 }
 
+#[cfg(desktop)]
 fn position_popup(popup: &tauri::WebviewWindow, click: tauri::PhysicalPosition<f64>) {
     let scale = popup.scale_factor().unwrap_or(2.0);
     let w = (320.0 * scale) as i32;
@@ -220,7 +240,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_deep_link::init())
-        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_notification::init());
+
+    #[cfg(desktop)]
+    let builder = builder
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -273,7 +296,6 @@ pub fn run() {
                 }
             }
 
-            #[cfg(desktop)]
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
 
@@ -305,7 +327,14 @@ pub fn run() {
                         let _ = handle.emit("deep-link-received", url_str);
                     }
                 });
+            }
 
+            // Runs while the app is alive on every platform (on mobile that
+            // means foreground only)
+            notification_scheduler::spawn_scheduler(app.handle().clone());
+
+            #[cfg(desktop)]
+            {
                 // Global shortcut registration is done via the register_global_shortcut command
                 // called from the frontend with the user's configured keybinding
 
@@ -344,13 +373,12 @@ pub fn run() {
                 if !prefs.tray_enabled {
                     tray.set_visible(false).ok();
                 }
-
-                notification_scheduler::spawn_scheduler(app.handle().clone());
             }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             set_vault_path,
+            use_default_vault,
             get_vault_path,
             get_tasks,
             get_task,

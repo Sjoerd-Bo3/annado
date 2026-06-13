@@ -1,11 +1,15 @@
 import { useState } from 'react';
-import { PointerSensor, useSensor, useSensors, DragStartEvent, DragEndEvent } from '@dnd-kit/core';
+import { PointerSensor, TouchSensor, useSensor, useSensors, DragStartEvent, DragEndEvent } from '@dnd-kit/core';
 import { useTaskStore } from '../stores/taskStore';
 import type { Task, WhenValue } from '../types/task';
 
 export function useDragAndDrop() {
   const [activeDragTask, setActiveDragTask] = useState<Task | null>(null);
-  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    // Long-press to drag on touch screens so scrolling still works
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  );
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveDragTask(event.active.data.current?.task ?? null);
