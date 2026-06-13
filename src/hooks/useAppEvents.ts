@@ -2,8 +2,10 @@ import { useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { useTaskStore, QuickAddPrefill } from '../stores/taskStore';
+import type { Task } from '../types/task';
 import { isDateUpcoming } from '../utils/dates';
 import { KEYBINDING_DEFAULTS } from '../utils/keybindings';
+import { isIOS } from '../utils/platform';
 
 const MAX_DEEP_LINK_PARAM_LENGTH = 1000;
 
@@ -48,6 +50,28 @@ export function useAppEvents() {
     return () => {
       cleanup?.();
     };
+  }, []);
+
+  // iOS suspends file watching in the sandbox; rescan the vault whenever the
+  // app returns to the foreground so external edits (Obsidian, iCloud sync)
+  // show up.
+  useEffect(() => {
+    if (!isIOS) return;
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      const store = useTaskStore.getState();
+      if (!store.vaultPath) return;
+      invoke<Task[]>('rescan_vault')
+        .then((tasks) => {
+          useTaskStore.setState({ tasks });
+          store.fetchPeople();
+          store.fetchProjects();
+          store.fetchTags();
+        })
+        .catch((e) => console.error('[ios] foreground rescan failed:', e));
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
   // Calendar: fetch events on startup + refresh every 5 minutes

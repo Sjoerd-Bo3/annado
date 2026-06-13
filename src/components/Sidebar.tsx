@@ -17,7 +17,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useTaskStore } from '../stores/taskStore';
 import { ViewType, getWhenType, ProjectInfo, PersonInfo, SmartList } from '../types/task';
 import { ContextMenu } from './ContextMenu';
-import { isMac, isPrimaryMod } from '../utils/platform';
+import { isIOS, isMac, isPrimaryMod } from '../utils/platform';
 
 // Heavy modals load on first open — keeps the startup bundle small.
 const SettingsModal = lazy(() => import('./SettingsModal').then((m) => ({ default: m.SettingsModal })));
@@ -564,8 +564,13 @@ export function Sidebar() {
       className="bg-[#F8F7F6] dark:bg-[#1E1E1E] flex flex-col h-full relative"
       style={{ width: sidebarWidth }}
     >
-      {/* Traffic light padding for macOS; other platforms keep a slim drag strip */}
-      <div className={`${isMac ? 'h-12' : 'h-8'} titlebar-drag`} />
+      {/* Traffic light padding for macOS; iOS uses the safe-area inset;
+          other platforms keep a slim drag strip */}
+      {isIOS ? (
+        <div style={{ height: 'max(env(safe-area-inset-top), 12px)' }} />
+      ) : (
+        <div className={`${isMac ? 'h-12' : 'h-8'} titlebar-drag`} />
+      )}
 
 
       <nav className="flex-1 px-4 overflow-y-auto overflow-x-hidden">
@@ -610,7 +615,7 @@ export function Sidebar() {
               </button>
               <button
                 onClick={() => setShowCreatePerson(true)}
-                className="text-[#8A8A8A] hover:text-[#555] dark:hover:text-[#AAA] opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity duration-[120ms]"
+                className="text-[#8A8A8A] hover:text-[#555] dark:hover:text-[#AAA] opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 focus-visible:opacity-100 transition-opacity duration-[120ms]"
                 title="New Person"
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -729,7 +734,7 @@ export function Sidebar() {
             </button>
             <button
               onClick={() => { setEditingSmartList(undefined); setSmartListModalOpen(true); }}
-              className="text-[#8A8A8A] hover:text-[#555] dark:hover:text-[#AAA] opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity duration-[120ms]"
+              className="text-[#8A8A8A] hover:text-[#555] dark:hover:text-[#AAA] opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 focus-visible:opacity-100 transition-opacity duration-[120ms]"
               title="New Smart List"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -769,7 +774,7 @@ export function Sidebar() {
           <h2 className={sectionHeadingClass}>Projects</h2>
           <button
             onClick={() => setCreateProjectParent(null)}
-            className="text-[#8A8A8A] hover:text-[#555] dark:hover:text-[#AAA] opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity duration-[120ms]"
+            className="text-[#8A8A8A] hover:text-[#555] dark:hover:text-[#AAA] opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 focus-visible:opacity-100 transition-opacity duration-[120ms]"
             title="New Project"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

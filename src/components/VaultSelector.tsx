@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
+import { invoke } from '@tauri-apps/api/core';
 import { useTaskStore } from '../stores/taskStore';
+import { isIOS } from '../utils/platform';
 
 export function VaultSelector() {
-  const { setVaultPath, isLoading, error } = useTaskStore();
+  const { setVaultPath, loadSavedVaultPath, isLoading, error } = useTaskStore();
   const [localError, setLocalError] = useState<string | null>(null);
 
   const handleSelectVault = async () => {
@@ -17,6 +19,19 @@ export function VaultSelector() {
       if (selected && typeof selected === 'string') {
         await setVaultPath(selected);
       }
+    } catch (err) {
+      setLocalError(String(err));
+    }
+  };
+
+  // iOS: arbitrary folder access needs security-scoped bookmarks (not wired
+  // up yet — see docs/ios.md), so the vault lives in the app's own Documents
+  // folder, visible in the Files app under "On My iPad/iPhone › Annado".
+  const handleUseDefaultVault = async () => {
+    try {
+      setLocalError(null);
+      await invoke('use_default_vault');
+      await loadSavedVaultPath();
     } catch (err) {
       setLocalError(String(err));
     }
@@ -48,13 +63,23 @@ export function VaultSelector() {
           A task manager for your markdown files.
         </p>
 
-        <button
-          onClick={handleSelectVault}
-          disabled={isLoading}
-          className="px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-[#4A5AAF] disabled:opacity-50 transition-colors font-medium text-[14px] shadow-sm"
-        >
-          {isLoading ? 'Loading...' : 'Select Vault'}
-        </button>
+        {isIOS ? (
+          <button
+            onClick={handleUseDefaultVault}
+            disabled={isLoading}
+            className="px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-[#4A5AAF] disabled:opacity-50 transition-colors font-medium text-[14px] shadow-sm"
+          >
+            {isLoading ? 'Loading...' : 'Create Vault in Files App'}
+          </button>
+        ) : (
+          <button
+            onClick={handleSelectVault}
+            disabled={isLoading}
+            className="px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-[#4A5AAF] disabled:opacity-50 transition-colors font-medium text-[14px] shadow-sm"
+          >
+            {isLoading ? 'Loading...' : 'Select Vault'}
+          </button>
+        )}
 
         {(error || localError) && (
           <p className="mt-4 text-[13px] text-danger">{error || localError}</p>

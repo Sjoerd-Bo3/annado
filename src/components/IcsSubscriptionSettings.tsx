@@ -50,7 +50,7 @@ export function IcsSubscriptionSettings() {
           <button
             onClick={() => removeIcsSubscription(sub.id).catch((e) => setError(String(e)))}
             title="Remove subscription"
-            className="text-[#B0B0B0] hover:text-danger opacity-0 group-hover:opacity-100 transition-opacity px-1"
+            className="text-[#B0B0B0] hover:text-danger opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 transition-opacity px-1"
           >
             ✕
           </button>

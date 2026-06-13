@@ -1,7 +1,7 @@
 import React, { useState, lazy, Suspense } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { isWindows } from './utils/platform';
+import { isDesktop, isWindows } from './utils/platform';
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { useTaskStore } from './stores/taskStore';
 import { PanelProvider } from './contexts/PanelContext';
@@ -97,7 +97,7 @@ function App() {
       <div className="h-screen flex bg-[#FEFEFE] dark:bg-[#1A1A1A]">
         {/* Drag zone for window movement - covers top of window.
             On Windows it stops short of the overlay window controls (decorum). */}
-        <div
+        {isDesktop && <div
           data-tauri-drag-region
           className={`fixed top-0 left-0 h-8 z-[9999] ${isWindows ? 'right-[140px]' : 'right-0'}`}
           style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
@@ -107,7 +107,7 @@ function App() {
             e.preventDefault();
             getCurrentWindow().startDragging();
           }}
-        />
+        />}
         <Sidebar />
         <DndContext
           sensors={dndSensors}

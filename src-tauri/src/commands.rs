@@ -182,14 +182,18 @@ pub fn set_vault_path(path: String, app: AppHandle) -> Result<Vec<Task>, String>
     // 2. Instance generation already happens atomically during template creation
     // 3. This prevents race conditions that cause duplicate instances
 
-    // Start watching for changes
-    let app_handle = app.clone();
-    vault.start_watching(move |updated_tasks| {
-        // Emit event to frontend when files change
-        if let Err(e) = app_handle.emit("tasks-updated", &updated_tasks) {
-            eprintln!("Failed to emit tasks-updated event: {}", e);
-        }
-    })?;
+    // Start watching for changes. iOS suspends background file watching in the
+    // sandbox; the frontend triggers rescan_vault on app foreground instead.
+    #[cfg(not(target_os = "ios"))]
+    {
+        let app_handle = app.clone();
+        vault.start_watching(move |updated_tasks| {
+            // Emit event to frontend when files change
+            if let Err(e) = app_handle.emit("tasks-updated", &updated_tasks) {
+                eprintln!("Failed to emit tasks-updated event: {}", e);
+            }
+        })?;
+    }
 
     // Store the vault
     {
@@ -201,6 +205,21 @@ pub fn set_vault_path(path: String, app: AppHandle) -> Result<Vec<Task>, String>
     let _ = save_config(&app, &config);
 
     Ok(tasks)
+}
+
+/// Create and select a vault inside the app's own Documents folder.
+/// The primary vault flow on iOS (visible in the Files app), where arbitrary
+/// folder access needs security-scoped bookmarks — see docs/ios.md.
+#[tauri::command]
+pub fn use_default_vault(app: AppHandle) -> Result<Vec<Task>, String> {
+    let documents = app
+        .path()
+        .document_dir()
+        .map_err(|e| format!("Failed to locate Documents folder: {}", e))?;
+    let vault_dir = documents.join("Annado");
+    std::fs::create_dir_all(&vault_dir)
+        .map_err(|e| format!("Failed to create vault folder: {}", e))?;
+    set_vault_path(vault_dir.to_string_lossy().to_string(), app)
 }
 
 #[tauri::command]
