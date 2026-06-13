@@ -20,8 +20,9 @@ verified on a device** — treat the first device build as a validation pass.
   foreground; see follow-ups for background delivery).
 - **Touch**: long-press (250 ms) to drag in lists and the agenda, hit
   targets enlarged via `pointer: coarse` media queries, hover-revealed
-  controls always visible, safe-area insets respected
-  (`viewport-fit=cover`).
+  controls always visible, and safe-area insets honored via
+  `viewport-fit=cover` (top inset on the sidebar; bottom inset on the
+  app root for the home indicator).
 - **iPad hardware keyboards**: ⌘-based shortcuts work (the platform layer
   treats iOS like macOS for the primary modifier).
 - Instead of a file watcher (suspended in the iOS sandbox), the app rescans
@@ -72,6 +73,7 @@ After `ios init`, add to the generated `Info.plist`:
 
 ## iPhone
 
-The iPad layout reuses the desktop split view. iPhone-width layouts
-(sidebar as drawer, side panel as sheet) are a separate pass — see the
-`claude/iphone-support` branch.
+The iPad layout reuses the desktop split view. iPhone-width layouts are
+implemented: below 768px the sidebar becomes a slide-in drawer (opened by a
+floating button, auto-closing on navigation) and the side panel becomes a
+full-screen sheet.

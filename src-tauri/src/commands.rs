@@ -860,6 +860,11 @@ pub fn save_notification_prefs(
 
 #[tauri::command]
 pub fn set_tray_enabled(enabled: bool, app: AppHandle) -> Result<(), String> {
+    // `tray_by_id` only exists under `cfg(all(desktop, feature = "tray-icon"))`,
+    // and tray-icon is a desktop-only dependency — so this must be gated or the
+    // iOS/Android build fails to compile. The preference is still persisted on
+    // mobile so the setting round-trips.
+    #[cfg(all(desktop, feature = "tray-icon"))]
     if let Some(tray) = app.tray_by_id("main-tray") {
         tray.set_visible(enabled).map_err(|e: tauri::Error| e.to_string())?;
     }
