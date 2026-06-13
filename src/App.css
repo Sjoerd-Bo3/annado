@@ -32,6 +32,11 @@ html, body, #root {
   overflow: hidden;
 }
 
+/* Keep content above the iPhone home indicator (0 everywhere else) */
+#root {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 /* Touch screens (iPad/iPhone): comfortable hit targets, and no text-callout
    on long-press (long-press starts a drag instead) */
 @media (pointer: coarse) {

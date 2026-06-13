@@ -152,7 +152,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsProps) {
           </div>
 
           {/* Tab bar */}
-          <div className="flex px-6 gap-5">
+          <div className="flex px-6 gap-5 overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.id}

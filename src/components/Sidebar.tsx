@@ -18,6 +18,7 @@ import { useTaskStore } from '../stores/taskStore';
 import { ViewType, getWhenType, ProjectInfo, PersonInfo, SmartList } from '../types/task';
 import { ContextMenu } from './ContextMenu';
 import { isIOS, isMac, isPrimaryMod } from '../utils/platform';
+import { useIsNarrow } from '../hooks/useIsNarrow';
 
 // Heavy modals load on first open — keeps the startup bundle small.
 const SettingsModal = lazy(() => import('./SettingsModal').then((m) => ({ default: m.SettingsModal })));
@@ -236,7 +237,8 @@ function SortableProjectItem({
 }
 
 export function Sidebar() {
-  const { currentView, setCurrentView, tasks, selectedProject, setSelectedProject, availableProjects, selectedPerson, setSelectedPerson, availablePeople, recurringTemplates, selectedTag, setSelectedTag, availableTags, sidebarWidth, setSidebarWidth, expandedFolders, toggleFolder, projectColors, setProjectColor, tagColors, setTagColor, projectOrder, reorderProjects, sidebarCounts, showProjectCounts, smartLists, selectedSmartListId, deleteSmartList, setSelectedSmartList, renameProject, renamePerson } = useTaskStore(useShallow((s) => ({ currentView: s.currentView, setCurrentView: s.setCurrentView, tasks: s.tasks, selectedProject: s.selectedProject, setSelectedProject: s.setSelectedProject, availableProjects: s.availableProjects, selectedPerson: s.selectedPerson, setSelectedPerson: s.setSelectedPerson, availablePeople: s.availablePeople, recurringTemplates: s.recurringTemplates, selectedTag: s.selectedTag, setSelectedTag: s.setSelectedTag, availableTags: s.availableTags, sidebarWidth: s.sidebarWidth, setSidebarWidth: s.setSidebarWidth, expandedFolders: s.expandedFolders, toggleFolder: s.toggleFolder, projectColors: s.projectColors, setProjectColor: s.setProjectColor, tagColors: s.tagColors, setTagColor: s.setTagColor, projectOrder: s.projectOrder, reorderProjects: s.reorderProjects, sidebarCounts: s.sidebarCounts, showProjectCounts: s.showProjectCounts, smartLists: s.smartLists, selectedSmartListId: s.selectedSmartListId, deleteSmartList: s.deleteSmartList, setSelectedSmartList: s.setSelectedSmartList, renameProject: s.renameProject, renamePerson: s.renamePerson, })));
+  const { currentView, setCurrentView, tasks, selectedProject, setSelectedProject, availableProjects, selectedPerson, setSelectedPerson, availablePeople, recurringTemplates, selectedTag, setSelectedTag, availableTags, sidebarWidth, setSidebarWidth, expandedFolders, toggleFolder, projectColors, setProjectColor, tagColors, setTagColor, projectOrder, reorderProjects, sidebarCounts, showProjectCounts, smartLists, selectedSmartListId, deleteSmartList, setSelectedSmartList, renameProject, renamePerson, mobileSidebarOpen, setMobileSidebarOpen } = useTaskStore(useShallow((s) => ({ currentView: s.currentView, setCurrentView: s.setCurrentView, tasks: s.tasks, selectedProject: s.selectedProject, setSelectedProject: s.setSelectedProject, availableProjects: s.availableProjects, selectedPerson: s.selectedPerson, setSelectedPerson: s.setSelectedPerson, availablePeople: s.availablePeople, recurringTemplates: s.recurringTemplates, selectedTag: s.selectedTag, setSelectedTag: s.setSelectedTag, availableTags: s.availableTags, sidebarWidth: s.sidebarWidth, setSidebarWidth: s.setSidebarWidth, expandedFolders: s.expandedFolders, toggleFolder: s.toggleFolder, projectColors: s.projectColors, setProjectColor: s.setProjectColor, tagColors: s.tagColors, setTagColor: s.setTagColor, projectOrder: s.projectOrder, reorderProjects: s.reorderProjects, sidebarCounts: s.sidebarCounts, showProjectCounts: s.showProjectCounts, smartLists: s.smartLists, selectedSmartListId: s.selectedSmartListId, deleteSmartList: s.deleteSmartList, setSelectedSmartList: s.setSelectedSmartList, renameProject: s.renameProject, renamePerson: s.renamePerson, mobileSidebarOpen: s.mobileSidebarOpen, setMobileSidebarOpen: s.setMobileSidebarOpen, })));
+  const isNarrow = useIsNarrow();
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [colorPickerProject, setColorPickerProject] = useState<string | null>(null);
   const [colorPickerTag, setColorPickerTag] = useState<string | null>(null);
@@ -559,10 +561,23 @@ export function Sidebar() {
   };
 
   return (
+    <>
+    {isNarrow && mobileSidebarOpen && (
+      <div
+        className="fixed inset-0 bg-black/30 z-40"
+        onClick={() => setMobileSidebarOpen(false)}
+      />
+    )}
     <aside
       ref={sidebarRef}
-      className="bg-[#F8F7F6] dark:bg-[#1E1E1E] flex flex-col h-full relative"
-      style={{ width: sidebarWidth }}
+      className={`bg-[#F8F7F6] dark:bg-[#1E1E1E] flex flex-col h-full ${
+        isNarrow
+          ? `fixed left-0 top-0 bottom-0 z-50 shadow-xl transition-transform duration-200 ${
+              mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+            }`
+          : 'relative'
+      }`}
+      style={{ width: isNarrow ? Math.min(sidebarWidth, 300) : sidebarWidth }}
     >
       {/* Traffic light padding for macOS; iOS uses the safe-area inset;
           other platforms keep a slim drag strip */}
@@ -917,5 +932,6 @@ export function Sidebar() {
         <CreatePersonModal onClose={() => setShowCreatePerson(false)} />
       )}
     </aside>
+    </>
   );
 }

@@ -38,6 +38,9 @@ const persisted = loadPersistedUI();
 
 export interface UISlice {
   sidebarWidth: number;
+  /** Drawer state for the sidebar on phone-width screens (not persisted) */
+  mobileSidebarOpen: boolean;
+  setMobileSidebarOpen: (open: boolean) => void;
   expandedFolders: Set<string>;
   projectColors: Record<string, string>;
   tagColors: Record<string, string>;
@@ -66,6 +69,8 @@ const MAX_RECENT = 20;
 
 export const createUISlice: SliceCreator<UISlice> = (set, get) => ({
   sidebarWidth: persisted.sidebarWidth,
+  mobileSidebarOpen: false,
+  setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open }),
   expandedFolders: persisted.expandedFolders,
   projectColors: persisted.projectColors,
   tagColors: persisted.tagColors,
