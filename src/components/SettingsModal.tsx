@@ -8,6 +8,7 @@ import { Toggle } from './Toggle';
 import { KeybindingInput, KEYBINDING_DEFAULTS } from './KeybindingInput';
 import { NotificationSettings } from '../features/notifications/NotificationSettings';
 import { AboutSettings } from './AboutSettings';
+import { PRIMARY_MOD_SYMBOL, SHIFT_SYMBOL } from '../utils/platform';
 
 interface SettingsProps {
   isOpen: boolean;
@@ -23,24 +24,24 @@ const shortcutGroups: ShortcutGroup[] = [
   {
     group: 'Tasks',
     items: [
-      { keys: ['⌘', 'N'], description: 'New task' },
-      { keys: ['⌘', '⇧', 'R'], description: 'New recurring task' },
+      { keys: [PRIMARY_MOD_SYMBOL, 'N'], description: 'New task' },
+      { keys: [PRIMARY_MOD_SYMBOL, SHIFT_SYMBOL, 'R'], description: 'New recurring task' },
       { keys: ['Enter'], description: 'Expand / collapse task' },
-      { keys: ['⌘', 'Click'], description: 'Multi-select tasks' },
+      { keys: [PRIMARY_MOD_SYMBOL, 'Click'], description: 'Multi-select tasks' },
     ],
   },
   {
     group: 'Agenda',
     items: [
       { keys: ['←', '→'], description: 'Navigate day / week' },
-      { keys: ['⇧', '←', '→'], description: 'Navigate by week' },
+      { keys: [SHIFT_SYMBOL, '←', '→'], description: 'Navigate by week' },
       { keys: ['T'], description: 'Jump to today' },
     ],
   },
   {
     group: 'App',
     items: [
-      { keys: ['⌘', ','], description: 'Open settings' },
+      { keys: [PRIMARY_MOD_SYMBOL, ','], description: 'Open settings' },
       { keys: ['Esc'], description: 'Close panel / Deselect' },
       { keys: ['Type'], description: 'Quick Find (type anywhere)' },
     ],
@@ -51,7 +52,7 @@ type SettingsTab = 'general' | 'calendar' | 'shortcuts' | 'notifications' | 'abo
 
 
 export function SettingsModal({ isOpen, onClose }: SettingsProps) {
-  const { vaultPath, setVaultPath, keybindings, setKeybinding, folderPaths, setFolderPaths, theme, setTheme, accentColor, setAccentColor, excludedPaths, addExcludedPath, removeExcludedPath, calendarEnabled, setCalendarEnabled, availableCalendars, enabledCalendarNames, toggleCalendar, checkCalendarAccess, calendarAccessGranted, calendarBlockingDefaults, setCalendarBlocking, workSchedule, setWorkSchedule, sidebarCounts, setSidebarCount, showProjectCounts, setShowProjectCounts, weekStartsOn, setWeekStartsOn, agendaShowWeekends, setAgendaShowWeekends, defaultTaskDuration, setDefaultTaskDuration, confirmDelete, setConfirmDelete, isObsidianVault, setIsObsidianVault, editorType, editorCustomCommand, setEditorConfig } = useTaskStore();
+  const { vaultPath, setVaultPath, keybindings, setKeybinding, folderPaths, setFolderPaths, theme, setTheme, accentColor, setAccentColor, excludedPaths, addExcludedPath, removeExcludedPath, calendarEnabled, setCalendarEnabled, systemCalendarSupported, availableCalendars, enabledCalendarNames, toggleCalendar, checkCalendarAccess, calendarAccessGranted, calendarBlockingDefaults, setCalendarBlocking, workSchedule, setWorkSchedule, sidebarCounts, setSidebarCount, showProjectCounts, setShowProjectCounts, weekStartsOn, setWeekStartsOn, agendaShowWeekends, setAgendaShowWeekends, defaultTaskDuration, setDefaultTaskDuration, confirmDelete, setConfirmDelete, isObsidianVault, setIsObsidianVault, editorType, editorCustomCommand, setEditorConfig } = useTaskStore();
   const [isChangingVault, setIsChangingVault] = useState(false);
   const [localFolderPaths, setLocalFolderPaths] = useState(folderPaths);
   const [isSavingFolderPaths, setIsSavingFolderPaths] = useState(false);
@@ -581,8 +582,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsProps) {
                 </div>
               </div>
 
-              {/* Calendar Section */}
+              {/* Calendar Section — only on platforms with a system calendar */}
               <div>
+              {systemCalendarSupported && (<>
               <h3 className="text-[10px] font-semibold text-[#B0B0B0] dark:text-[#555] uppercase tracking-wider mb-3">
                 Calendar
               </h3>
@@ -682,6 +684,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsProps) {
                   </div>
                 )}
               </div>
+              </>)}
 
               {/* ── Schedule Section ── */}
               <div className="mt-7">

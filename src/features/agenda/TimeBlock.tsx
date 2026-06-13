@@ -10,6 +10,7 @@ import { DAY_START, DAY_END, PIXELS_PER_MINUTE, BLOCK_GAP_PX } from './constants
 import { formatTime, formatDuration } from './utils';
 import { WikilinkRenderer } from '../../components/WikilinkRenderer';
 import { getMeetingUrl } from './meetingUrl';
+import { isPrimaryMod, primaryShortcutLabel } from '../../utils/platform';
 
 const MIN_BLOCK_HEIGHT = 26;
 const MIN_DURATION = 15;
@@ -80,9 +81,9 @@ function BlockContextMenu({ block, clickX, clickY, isTask, isPinned, isEvent, ha
   useEffect(() => {
     if (!isEvent) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.metaKey && e.key === 't') { e.preventDefault(); onCreateTask(); }
-      else if (e.metaKey && e.key === 'b') { e.preventDefault(); onToggleBlocking(); }
-      else if (e.metaKey && e.key === 'e') { e.preventDefault(); onEditEvent(); }
+      if (isPrimaryMod(e) && e.key === 't') { e.preventDefault(); onCreateTask(); }
+      else if (isPrimaryMod(e) && e.key === 'b') { e.preventDefault(); onToggleBlocking(); }
+      else if (isPrimaryMod(e) && e.key === 'e') { e.preventDefault(); onEditEvent(); }
       else if (e.key === 'Backspace') { e.preventDefault(); onDelete(); }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -129,18 +130,18 @@ function BlockContextMenu({ block, clickX, clickY, isTask, isPinned, isEvent, ha
         {/* Event-specific menu items */}
         {isEvent && (
           <>
-            <MenuItem dot="#5C6BC0" label="Create task" shortcut="⌘T" onClick={onCreateTask} />
+            <MenuItem dot="#5C6BC0" label="Create task" shortcut={primaryShortcutLabel('T')} onClick={onCreateTask} />
             <MenuItem
               dot="#999"
               label={block.isBlocking ? 'Mark non-blocking' : 'Mark blocking'}
-              shortcut="⌘B"
+              shortcut={primaryShortcutLabel('B')}
               onClick={onToggleBlocking}
             />
             {hasBlockingOverride && (
               <MenuItem dot="#999" label="Reset to calendar default" onClick={onResetBlocking} />
             )}
             <div className="border-t border-[#f0eeeb] dark:border-[#3A3A3A]" />
-            <MenuItem dot="#999" label="Edit event" shortcut="⌘E" onClick={onEditEvent} />
+            <MenuItem dot="#999" label="Edit event" shortcut={primaryShortcutLabel('E')} onClick={onEditEvent} />
             <MenuItem dot="#E53935" label="Delete" shortcut="Del" red onClick={onDelete} />
           </>
         )}

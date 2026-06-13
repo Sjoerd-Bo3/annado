@@ -1,18 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-
-// Convert keybinding string to display format
-function formatKeybinding(binding: string): string[] {
-  const parts = binding.toLowerCase().split('+');
-  return parts.map(part => {
-    switch (part) {
-      case 'meta': return '⌘';
-      case 'shift': return '⇧';
-      case 'ctrl': return '⌃';
-      case 'alt': return '⌥';
-      default: return part.toUpperCase();
-    }
-  });
-}
+import { formatKeybinding } from '../utils/platform';
 
 interface KeybindingInputProps {
   value: string;

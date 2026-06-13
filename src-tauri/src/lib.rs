@@ -13,7 +13,7 @@ use commands::{
     get_excluded_paths, set_excluded_paths, set_annado_exclude_in_file,
     create_project, rename_project, create_person, rename_person,
     get_calendars, get_calendar_events, check_calendar_access, open_calendar_at_date,
-    delete_calendar_event,
+    delete_calendar_event, is_system_calendar_supported,
     get_is_obsidian_vault, set_is_obsidian_vault,
     get_editor_config, set_editor_config, open_file_in_editor,
     show_main_window, open_task_in_main, get_notification_prefs, save_notification_prefs,
@@ -198,15 +198,24 @@ fn toggle_tray_popup(app: &AppHandle, click_pos: tauri::PhysicalPosition<f64>) {
 fn position_popup(popup: &tauri::WebviewWindow, click: tauri::PhysicalPosition<f64>) {
     let scale = popup.scale_factor().unwrap_or(2.0);
     let w = (320.0 * scale) as i32;
+    let h = (480.0 * scale) as i32;
     let gap = (8.0 * scale) as i32;
     let x = (click.x as i32 - w / 2).max(0);
-    let y = click.y as i32 + gap;
+    // The macOS menu bar sits at the top, so the popup opens below the click;
+    // the Windows taskbar sits at the bottom, so open above when there's no room below
+    let mut y = click.y as i32 + gap;
+    if let Ok(Some(monitor)) = popup.current_monitor() {
+        let bottom = monitor.position().y + monitor.size().height as i32;
+        if y + h > bottom {
+            y = (click.y as i32 - h - gap).max(0);
+        }
+    }
     let _ = popup.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_deep_link::init())
@@ -246,8 +255,23 @@ pub fn run() {
                     }
                 })
                 .build(),
-        )
+        );
+
+    // Windows has no native overlay titlebar (`titleBarStyle: "Overlay"` is
+    // macOS-only); decorum recreates it while keeping Snap Layouts working
+    #[cfg(windows)]
+    let builder = builder.plugin(tauri_plugin_decorum::init());
+
+    builder
         .setup(|app| {
+            #[cfg(windows)]
+            {
+                use tauri_plugin_decorum::WebviewWindowExt;
+                if let Some(main_win) = app.get_webview_window("main") {
+                    let _ = main_win.create_overlay_titlebar();
+                }
+            }
+
             #[cfg(desktop)]
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
@@ -363,6 +387,7 @@ pub fn run() {
             check_calendar_access,
             open_calendar_at_date,
             delete_calendar_event,
+            is_system_calendar_supported,
             get_is_obsidian_vault,
             set_is_obsidian_vault,
             get_editor_config,
@@ -378,6 +403,8 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
         .run(|app_handle, event| {
+            // Reopen (Dock icon click) only exists on macOS
+            #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Reopen { has_visible_windows, .. } = event {
                 if !has_visible_windows {
                     if let Some(window) = app_handle.get_webview_window("main") {
@@ -386,5 +413,7 @@ pub fn run() {
                     }
                 }
             }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app_handle, event);
         });
 }

@@ -2735,11 +2735,26 @@ impl Vault {
 
 /// Sanitize a string for use as a filename
 fn sanitize_filename(name: &str) -> String {
-    name.chars()
+    let sanitized = name
+        .chars()
         .map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' { c } else { '_' })
         .collect::<String>()
         .trim()
-        .to_string()
+        .to_string();
+
+    // Windows reserves these device names (case-insensitive) as filenames,
+    // even with an extension. Vaults sync across machines, so guard everywhere.
+    const WINDOWS_RESERVED: [&str; 22] = [
+        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
+        "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    ];
+    if WINDOWS_RESERVED
+        .iter()
+        .any(|r| sanitized.eq_ignore_ascii_case(r))
+    {
+        return format!("{}_", sanitized);
+    }
+    sanitized
 }
 
 impl Vault {
@@ -2822,6 +2837,15 @@ impl Vault {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_sanitize_filename_windows_reserved_names() {
+        assert_eq!(sanitize_filename("CON"), "CON_");
+        assert_eq!(sanitize_filename("con"), "con_");
+        assert_eq!(sanitize_filename("Com1"), "Com1_");
+        assert_eq!(sanitize_filename("Console"), "Console");
+        assert_eq!(sanitize_filename("My Project: Q1/Q2"), "My Project_ Q1_Q2");
+    }
 
     #[test]
     fn test_is_path_excluded_folder_without_trailing_slash() {

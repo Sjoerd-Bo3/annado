@@ -721,6 +721,11 @@ pub fn rename_person(payload: RenamePersonPayload) -> Result<PersonInfo, String>
 // Calendar commands
 
 #[tauri::command]
+pub fn is_system_calendar_supported() -> bool {
+    calendar::system_calendar_supported()
+}
+
+#[tauri::command]
 pub fn get_calendars() -> Result<Vec<CalendarInfo>, String> {
     calendar::fetch_calendars()
 }
