@@ -420,5 +420,6 @@ Tracked in `docs/porting-plan.md` and `docs/ios.md`:
   notifications, EventKit on iOS, share extension / widget.
 - Optional OAuth calendar providers (Google API, Microsoft Graph) behind the
   existing provider seam; ICS subscription custom colors.
-- Windows release engineering: code signing (Azure Trusted Signing) and a
-  release artifact workflow.
+- Release engineering: `release.yml` already builds macOS/Windows/Linux
+  installers on tags and on demand (see `docs/builds.md`); still to do is code
+  signing (Apple notarization, Windows Authenticode / Azure Trusted Signing).
