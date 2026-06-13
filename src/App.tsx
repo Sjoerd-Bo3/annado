@@ -1,7 +1,8 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { isDesktop, isWindows } from './utils/platform';
+import { useIsNarrow } from './hooks/useIsNarrow';
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { useTaskStore } from './stores/taskStore';
 import { PanelProvider } from './contexts/PanelContext';
@@ -51,6 +52,23 @@ class ErrorBoundary extends React.Component<
 
 function App() {
   const { vaultPath, currentView } = useTaskStore(useShallow((s) => ({ vaultPath: s.vaultPath, currentView: s.currentView, })));
+  const isNarrow = useIsNarrow();
+
+  // Phone widths: close the sidebar drawer whenever navigation happens
+  useEffect(() => {
+    if (!isNarrow) return;
+    return useTaskStore.subscribe((state, prev) => {
+      if (
+        state.currentView !== prev.currentView ||
+        state.selectedProject !== prev.selectedProject ||
+        state.selectedPerson !== prev.selectedPerson ||
+        state.selectedTag !== prev.selectedTag ||
+        state.selectedSmartListId !== prev.selectedSmartListId
+      ) {
+        state.setMobileSidebarOpen(false);
+      }
+    });
+  }, [isNarrow]);
   useTheme();
   useAppEvents();
   const [moveToProjectOpen, setMoveToProjectOpen] = useState(false);
@@ -108,6 +126,22 @@ function App() {
             getCurrentWindow().startDragging();
           }}
         />}
+        {/* Phone widths: floating button opening the sidebar drawer; sits in
+            the task list header's 52px left gutter */}
+        {isNarrow && (
+          <button
+            onClick={() => useTaskStore.getState().setMobileSidebarOpen(true)}
+            title="Open sidebar"
+            className="fixed left-2 z-30 p-2 rounded-lg text-[#888] dark:text-[#999] bg-[#FEFEFE]/80 dark:bg-[#1A1A1A]/80 backdrop-blur-sm"
+            style={{ top: 'max(env(safe-area-inset-top), 10px)' }}
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <line x1="4" y1="7" x2="20" y2="7" strokeLinecap="round" />
+              <line x1="4" y1="12" x2="20" y2="12" strokeLinecap="round" />
+              <line x1="4" y1="17" x2="20" y2="17" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
         <Sidebar />
         <DndContext
           sensors={dndSensors}
