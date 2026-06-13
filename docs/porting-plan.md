@@ -157,7 +157,9 @@ still benefit from ICS sources).
   installer on Windows 10/11.
 - Add a GitHub Actions matrix build (`macos-latest`, `windows-latest`) using `tauri-action`;
   this also acts as a regression gate so macOS-only code can't sneak back in un-gated
-  (`cargo check --target x86_64-pc-windows-msvc` in CI).
+  (`cargo check --target x86_64-pc-windows-msvc` in CI). **Done:** `release.yml` builds
+  macOS (universal) / Windows / Linux installers on version tags (→ GitHub Release) and on
+  manual dispatch (→ run artifacts). See [`builds.md`](./builds.md).
 - **Code signing:** unsigned installers trigger SmartScreen warnings. Options: an OV/EV
   Authenticode cert (~$100–400/yr), or **Azure Trusted Signing** (cheap, automatable), or accept
   SmartScreen warnings for early builds.

@@ -1,0 +1,102 @@
+name: Release
+
+# Builds downloadable desktop installers so anyone can test from GitHub.
+#
+#  • Push a tag like `v0.1.0`         → publishes a GitHub *Release* with
+#    installers attached (the easiest path for non-technical testers).
+#  • Actions ▸ Release ▸ Run workflow → builds any branch and uploads the
+#    installers as run *artifacts* (no release created). Use this to hand a
+#    build to testers before tagging.
+#
+# Builds are currently UNSIGNED, so first launch needs a manual override:
+#   • macOS:   right-click the app ▸ Open  (or `xattr -cr /Applications/Annado.app`)
+#   • Windows: SmartScreen ▸ More info ▸ Run anyway
+# Code signing is tracked as a follow-up in docs/porting-plan.md.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# Needed so tauri-action can create the Release and upload assets on tag builds
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            # One universal binary that runs on both Apple Silicon and Intel
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            tauri-args: --target universal-apple-darwin
+            bundle-path: src-tauri/target/universal-apple-darwin/release/bundle
+          - platform: windows-latest
+            rust-targets: ''
+            tauri-args: ''
+            bundle-path: src-tauri/target/release/bundle
+          - platform: ubuntu-latest
+            rust-targets: ''
+            tauri-args: ''
+            bundle-path: src-tauri/target/release/bundle
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev librsvg2-dev
+
+      - run: npm ci
+
+      - name: Build app and (on tag) publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # tagName/releaseName are only set for tag pushes; on manual runs
+          # they stay empty and tauri-action just builds without a release.
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('Annado {0}', github.ref_name) || '' }}
+          releaseBody: 'Unsigned test builds. See the workflow file for first-launch instructions.'
+          releaseDraft: false
+          prerelease: true
+          args: ${{ matrix.tauri-args }}
+
+      - name: Upload installers as artifacts (manual runs)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: annado-${{ matrix.platform }}
+          path: |
+            ${{ matrix.bundle-path }}/dmg/*.dmg
+            ${{ matrix.bundle-path }}/macos/*.app
+            ${{ matrix.bundle-path }}/nsis/*-setup.exe
+            ${{ matrix.bundle-path }}/msi/*.msi
+            ${{ matrix.bundle-path }}/deb/*.deb
+            ${{ matrix.bundle-path }}/rpm/*.rpm
+            ${{ matrix.bundle-path }}/appimage/*.AppImage
+          if-no-files-found: ignore
