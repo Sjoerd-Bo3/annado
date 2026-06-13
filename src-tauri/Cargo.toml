@@ -41,7 +41,6 @@ parking_lot = "0.12"
 # Objective-C runtime bindings for the EventKit calendar integration
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = "0.6"
-objc2 = "0.6"
 
 # Overlay titlebar with native window controls (keeps Snap Layouts)
 [target.'cfg(windows)'.dependencies]

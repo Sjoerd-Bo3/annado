@@ -200,15 +200,20 @@ fn position_popup(popup: &tauri::WebviewWindow, click: tauri::PhysicalPosition<f
     let w = (320.0 * scale) as i32;
     let h = (480.0 * scale) as i32;
     let gap = (8.0 * scale) as i32;
-    let x = (click.x as i32 - w / 2).max(0);
+    let mut x = (click.x as i32 - w / 2).max(0);
     // The macOS menu bar sits at the top, so the popup opens below the click;
     // the Windows taskbar sits at the bottom, so open above when there's no room below
     let mut y = click.y as i32 + gap;
     if let Ok(Some(monitor)) = popup.current_monitor() {
-        let bottom = monitor.position().y + monitor.size().height as i32;
+        let mon = monitor.position();
+        let size = monitor.size();
+        let bottom = mon.y + size.height as i32;
         if y + h > bottom {
             y = (click.y as i32 - h - gap).max(0);
         }
+        // Keep the popup on-screen horizontally (tray icon near the right edge)
+        let right = mon.x + size.width as i32;
+        x = x.min((right - w).max(mon.x)).max(mon.x);
     }
     let _ = popup.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
 }

@@ -55,7 +55,6 @@ dependencies = [
  "chrono",
  "hex",
  "notify",
- "objc2",
  "once_cell",
  "parking_lot",
  "regex",
