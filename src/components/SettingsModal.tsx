@@ -7,6 +7,7 @@ import { ScheduleBreak, DEFAULT_WORK_SCHEDULE } from '../features/agenda/types';
 import { Toggle } from './Toggle';
 import { KeybindingInput, KEYBINDING_DEFAULTS } from './KeybindingInput';
 import { NotificationSettings } from '../features/notifications/NotificationSettings';
+import { IcsSubscriptionSettings } from './IcsSubscriptionSettings';
 import { AboutSettings } from './AboutSettings';
 import { PRIMARY_MOD_SYMBOL, SHIFT_SYMBOL } from '../utils/platform';
 
@@ -52,7 +53,7 @@ type SettingsTab = 'general' | 'calendar' | 'shortcuts' | 'notifications' | 'abo
 
 
 export function SettingsModal({ isOpen, onClose }: SettingsProps) {
-  const { vaultPath, setVaultPath, keybindings, setKeybinding, folderPaths, setFolderPaths, theme, setTheme, accentColor, setAccentColor, excludedPaths, addExcludedPath, removeExcludedPath, calendarEnabled, setCalendarEnabled, systemCalendarSupported, availableCalendars, enabledCalendarNames, toggleCalendar, checkCalendarAccess, calendarAccessGranted, calendarBlockingDefaults, setCalendarBlocking, workSchedule, setWorkSchedule, sidebarCounts, setSidebarCount, showProjectCounts, setShowProjectCounts, weekStartsOn, setWeekStartsOn, agendaShowWeekends, setAgendaShowWeekends, defaultTaskDuration, setDefaultTaskDuration, confirmDelete, setConfirmDelete, isObsidianVault, setIsObsidianVault, editorType, editorCustomCommand, setEditorConfig } = useTaskStore();
+  const { vaultPath, setVaultPath, keybindings, setKeybinding, folderPaths, setFolderPaths, theme, setTheme, accentColor, setAccentColor, excludedPaths, addExcludedPath, removeExcludedPath, calendarEnabled, setCalendarEnabled, systemCalendarSupported, icsSubscriptions, availableCalendars, enabledCalendarNames, toggleCalendar, checkCalendarAccess, calendarAccessGranted, calendarBlockingDefaults, setCalendarBlocking, workSchedule, setWorkSchedule, sidebarCounts, setSidebarCount, showProjectCounts, setShowProjectCounts, weekStartsOn, setWeekStartsOn, agendaShowWeekends, setAgendaShowWeekends, defaultTaskDuration, setDefaultTaskDuration, confirmDelete, setConfirmDelete, isObsidianVault, setIsObsidianVault, editorType, editorCustomCommand, setEditorConfig } = useTaskStore();
   const [isChangingVault, setIsChangingVault] = useState(false);
   const [localFolderPaths, setLocalFolderPaths] = useState(folderPaths);
   const [isSavingFolderPaths, setIsSavingFolderPaths] = useState(false);
@@ -584,7 +585,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsProps) {
 
               {/* Calendar Section — only on platforms with a system calendar */}
               <div>
-              {systemCalendarSupported && (<>
               <h3 className="text-[10px] font-semibold text-[#B0B0B0] dark:text-[#555] uppercase tracking-wider mb-3">
                 Calendar
               </h3>
@@ -597,9 +597,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsProps) {
                     checked={calendarEnabled}
                     onClick={async () => {
                       if (!calendarEnabled) {
-                        const granted = await checkCalendarAccess();
-                        if (granted) { setCalendarPermissionError(false); setCalendarEnabled(true); }
-                        else { setCalendarPermissionError(true); }
+                        // EventKit needs permission; ICS subscriptions don't
+                        const granted = systemCalendarSupported ? await checkCalendarAccess() : false;
+                        setCalendarPermissionError(systemCalendarSupported && !granted);
+                        if (granted || !systemCalendarSupported || icsSubscriptions.length > 0) {
+                          setCalendarEnabled(true);
+                        }
                       } else {
                         setCalendarEnabled(false);
                         setCalendarPermissionError(false);
@@ -680,11 +683,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsProps) {
 
                 {calendarEnabled && calendarAccessGranted && availableCalendars.length === 0 && (
                   <div className="text-[12px] text-[#B0B0B0] dark:text-[#555]">
-                    No calendars found. Make sure Calendar.app has calendars configured.
+                    {systemCalendarSupported
+                      ? 'No calendars found. Make sure Calendar.app has calendars configured.'
+                      : 'No calendars yet. Add an ICS subscription below.'}
                   </div>
                 )}
+
+                <IcsSubscriptionSettings />
               </div>
-              </>)}
 
               {/* ── Schedule Section ── */}
               <div className="mt-7">

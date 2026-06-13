@@ -227,4 +227,14 @@ export interface CalendarEvent {
   location: string | null;
   url: string | null;
   notes: string | null;
+  /** Events from read-only sources (ICS subscriptions) can't be edited or deleted */
+  readOnly: boolean;
+}
+
+/** A subscribed ICS calendar feed (read-only, works on every platform) */
+export interface IcsSubscription {
+  id: string;
+  name: string;
+  url: string;
+  color: string;
 }
