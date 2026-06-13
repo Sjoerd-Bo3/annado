@@ -41,7 +41,7 @@ export function ChecklistItemRow({ item, index, taskId, size = 'md', disabled = 
       {!disabled && !isEditing ? (
         <button
           onClick={() => deleteChecklistItem(taskId, index)}
-          className="opacity-0 group-hover:opacity-100 transition-opacity w-4 h-4 rounded-full border-[1.5px] border-[#CCC] dark:border-[#555] flex items-center justify-center text-[#999] dark:text-[#666] hover:text-danger flex-shrink-0"
+          className="opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 transition-opacity w-4 h-4 rounded-full border-[1.5px] border-[#CCC] dark:border-[#555] flex items-center justify-center text-[#999] dark:text-[#666] hover:text-danger flex-shrink-0"
           title="Delete subtask"
         >
           <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
