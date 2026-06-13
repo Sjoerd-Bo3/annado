@@ -1,4 +1,4 @@
-use crate::calendar::{self, CalendarInfo, CalendarEvent};
+use crate::calendar::{self, CalendarInfo, CalendarEvent, IcsSubscription};
 use crate::parser::{self, Task, WhenValue, RecurringTemplate, RecurrenceType, IntervalUnit};
 use crate::vault::{FolderPaths, Milestone, PersonInfo, PersonMetadata, ProjectInfo, ProjectMetadata, Vault};
 use chrono::Local;
@@ -23,6 +23,8 @@ pub struct AppConfig {
     pub editor_type: String,
     #[serde(default)]
     pub editor_custom_command: String,
+    #[serde(default)]
+    pub ics_subscriptions: Vec<IcsSubscription>,
 }
 
 fn default_editor_type() -> String { "system".to_string() }
@@ -53,6 +55,7 @@ fn load_config(app: &AppHandle) -> AppConfig {
                 vault_path: Some(vault_path.trim().to_string()),
                 folder_paths: FolderPaths::default(),
                 excluded_paths: Vec::new(),
+                ics_subscriptions: Vec::new(),
             };
             // Save migrated config and remove legacy file
             if let Some(config_path) = get_config_path(app) {
@@ -726,13 +729,64 @@ pub fn is_system_calendar_supported() -> bool {
 }
 
 #[tauri::command]
-pub fn get_calendars() -> Result<Vec<CalendarInfo>, String> {
-    calendar::fetch_calendars()
+pub fn get_calendars(app: AppHandle) -> Result<Vec<CalendarInfo>, String> {
+    calendar::fetch_calendars(&load_config(&app).ics_subscriptions)
 }
 
 #[tauri::command]
-pub fn get_calendar_events(calendar_names: Vec<String>, start_date: String, end_date: String) -> Result<Vec<CalendarEvent>, String> {
-    calendar::fetch_events(calendar_names, start_date, end_date)
+pub fn get_calendar_events(app: AppHandle, calendar_names: Vec<String>, start_date: String, end_date: String) -> Result<Vec<CalendarEvent>, String> {
+    calendar::fetch_events(calendar_names, start_date, end_date, &load_config(&app).ics_subscriptions)
+}
+
+// ICS subscription management
+
+/// Colors assigned to new subscriptions, cycled by position
+const SUBSCRIPTION_COLORS: [&str; 6] = [
+    "#5C6BC0", "#43A047", "#E53935", "#F5A623", "#8E44AD", "#00897B",
+];
+
+#[tauri::command]
+pub fn get_ics_subscriptions(app: AppHandle) -> Vec<IcsSubscription> {
+    load_config(&app).ics_subscriptions
+}
+
+#[tauri::command]
+pub fn add_ics_subscription(app: AppHandle, name: String, url: String) -> Result<IcsSubscription, String> {
+    let name = name.trim().to_string();
+    let url = url.trim().to_string();
+    if name.is_empty() {
+        return Err("Subscription name cannot be empty".to_string());
+    }
+    if !["https://", "http://", "webcal://"].iter().any(|p| url.starts_with(p)) {
+        return Err("Subscription URL must start with https://, http:// or webcal://".to_string());
+    }
+
+    let mut config = load_config(&app);
+    if config.ics_subscriptions.iter().any(|s| s.name == name) {
+        return Err(format!("A subscription named \"{}\" already exists", name));
+    }
+
+    let id = {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(url.as_bytes());
+        hasher.update(name.as_bytes());
+        hex::encode(&hasher.finalize()[..8])
+    };
+    let color = SUBSCRIPTION_COLORS[config.ics_subscriptions.len() % SUBSCRIPTION_COLORS.len()];
+    let sub = IcsSubscription { id, name, url, color: color.to_string() };
+
+    config.ics_subscriptions.push(sub.clone());
+    save_config(&app, &config)?;
+    Ok(sub)
+}
+
+#[tauri::command]
+pub fn remove_ics_subscription(app: AppHandle, id: String) -> Result<(), String> {
+    let mut config = load_config(&app);
+    config.ics_subscriptions.retain(|s| s.id != id);
+    calendar::ics::invalidate_cache(&id);
+    save_config(&app, &config)
 }
 
 #[tauri::command]
