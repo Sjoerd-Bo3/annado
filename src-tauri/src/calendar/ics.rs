@@ -5,7 +5,7 @@
 //! the same `CalendarEvent` shape the EventKit integration produces.
 
 use super::{CalendarEvent, CalendarInfo};
-use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, Duration, LocalResult, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -44,6 +44,9 @@ pub fn fetch_subscription_events(
 // ── Fetching & caching ────────────────────────────────────────────────────────
 
 const CACHE_TTL_SECS: u64 = 240; // frontend refreshes every 5 min; refetch just under that
+// Keep serving a cached copy through transient outages, but not forever — past
+// this a permanently-dead feed should surface its error instead of stale events.
+const MAX_STALE_SECS: u64 = 24 * 3600;
 const MAX_FEED_BYTES: u64 = 10 * 1024 * 1024;
 
 static FEED_CACHE: Lazy<Mutex<HashMap<String, (Instant, String)>>> =
@@ -61,20 +64,22 @@ fn fetch_with_cache(sub: &IcsSubscription) -> Result<String, String> {
             FEED_CACHE.lock().insert(sub.id.clone(), (Instant::now(), body.clone()));
             Ok(body)
         }
-        // Serve the last good copy when the network is down
+        // Serve the last good copy when the network is down, up to MAX_STALE_SECS
         Err(e) => match FEED_CACHE.lock().get(&sub.id) {
-            Some((_, body)) => Ok(body.clone()),
-            None => Err(e),
+            Some((at, body)) if at.elapsed().as_secs() < MAX_STALE_SECS => Ok(body.clone()),
+            _ => Err(e),
         },
     }
 }
 
 fn fetch_feed(url: &str) -> Result<String, String> {
     // Apple publishes subscription links as webcal:// — same thing over https
-    let url = url
-        .strip_prefix("webcal://")
-        .map(|rest| format!("https://{}", rest))
-        .unwrap_or_else(|| url.to_string());
+    // (scheme is case-insensitive per RFC 3986)
+    let url = if url.len() >= 9 && url[..9].eq_ignore_ascii_case("webcal://") {
+        format!("https://{}", &url[9..])
+    } else {
+        url.to_string()
+    };
 
     if !url.starts_with("https://") && !url.starts_with("http://") {
         return Err("Subscription URL must start with https://, http:// or webcal://".to_string());
@@ -167,7 +172,8 @@ fn parse_prop(line: &str) -> Option<Prop> {
     let colon = colon?;
     let (head, value) = (&line[..colon], &line[colon + 1..]);
 
-    let mut parts = head.split(';');
+    // Split params on ';' but not inside quoted values (e.g. CN="Last; First")
+    let mut parts = split_unquoted(head, ';').into_iter();
     let name = parts.next()?.trim().to_ascii_uppercase();
     if name.is_empty() {
         return None;
@@ -180,6 +186,25 @@ fn parse_prop(line: &str) -> Option<Prop> {
         .collect();
 
     Some(Prop { name, params, value: value.to_string() })
+}
+
+/// Split `s` on `delim`, ignoring delimiters inside double-quoted spans.
+fn split_unquoted(s: &str, delim: char) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut in_quotes = false;
+    let mut start = 0;
+    for (i, c) in s.char_indices() {
+        match c {
+            '"' => in_quotes = !in_quotes,
+            _ if c == delim && !in_quotes => {
+                parts.push(&s[start..i]);
+                start = i + c.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    parts.push(&s[start..]);
+    parts
 }
 
 fn parse_events(text: &str) -> Vec<RawEvent> {
@@ -300,12 +325,33 @@ fn parse_ics_datetime(prop: &Prop) -> Option<IcsTime> {
 
     let naive = NaiveDateTime::parse_from_str(value, "%Y%m%dT%H%M%S").ok()?;
     if let Some(tz) = prop.param("TZID").and_then(resolve_tzid) {
-        let local = tz.from_local_datetime(&naive).earliest()?;
-        return Some(IcsTime::Moment(local.with_timezone(&Utc)));
+        return Some(IcsTime::Moment(local_naive_to_utc(&tz, naive)));
     }
     // Floating time (no TZID): interpret in the device's local time zone
-    let local = chrono::Local.from_local_datetime(&naive).earliest()?;
-    Some(IcsTime::Moment(local.with_timezone(&Utc)))
+    Some(IcsTime::Moment(local_naive_to_utc(&chrono::Local, naive)))
+}
+
+/// Convert a naive local datetime to UTC, tolerating DST transitions.
+/// Ambiguous (fall-back) times take the earlier offset; nonexistent times in a
+/// spring-forward gap are nudged forward out of the gap rather than dropped.
+fn local_naive_to_utc<Tz: TimeZone>(tz: &Tz, naive: NaiveDateTime) -> DateTime<Utc> {
+    match tz.from_local_datetime(&naive) {
+        LocalResult::Single(t) => t.with_timezone(&Utc),
+        LocalResult::Ambiguous(t, _) => t.with_timezone(&Utc),
+        LocalResult::None => {
+            // Spring-forward gap: shift forward (DST jumps are ≤ a couple hours)
+            let mut shifted = naive;
+            for _ in 0..4 {
+                shifted += Duration::hours(1);
+                if let LocalResult::Single(t) | LocalResult::Ambiguous(t, _) =
+                    tz.from_local_datetime(&shifted)
+                {
+                    return t.with_timezone(&Utc);
+                }
+            }
+            Utc.from_utc_datetime(&naive)
+        }
+    }
 }
 
 /// Parse an ISO-8601 duration like "PT1H30M" / "P1D" (subset used by DURATION)
@@ -344,13 +390,18 @@ fn parse_ics_duration(s: &str) -> Option<Duration> {
 // ── Occurrence expansion ──────────────────────────────────────────────────────
 
 const MAX_OCCURRENCES: u16 = 1000;
+/// Hard ceiling on events emitted from a single feed (defense against a
+/// pathological feed; the 10 MB byte cap is the other guard).
+const MAX_EVENTS: usize = 5000;
 
 fn expand_recurrences(
     ev: &RawEvent,
     dtstart: &Prop,
-    window_start: DateTime<Utc>,
+    lower_bound: DateTime<Utc>,
     window_end: DateTime<Utc>,
 ) -> Option<Vec<IcsTime>> {
+    // Only returns None for "no RRULE" (single event) or an unparseable rule —
+    // an unmappable TZID must NOT collapse the series, so it falls back to UTC.
     let rrule_prop = ev.get("RRULE")?;
 
     // Reassemble the raw lines the rrule crate expects. Non-IANA TZIDs are
@@ -361,7 +412,7 @@ fn expand_recurrences(
     if is_date {
         dtstart_line.push_str(";VALUE=DATE");
     } else if let Some(tzid) = dtstart.param("TZID") {
-        let tz = resolve_tzid(tzid)?;
+        let tz = resolve_tzid(tzid).unwrap_or(chrono_tz::UTC);
         dtstart_line.push_str(&format!(";TZID={}", tz.name()));
     }
     dtstart_line.push(':');
@@ -372,7 +423,7 @@ fn expand_recurrences(
         for prop in ev.get_all(name) {
             let mut line = name.to_string();
             if let Some(tzid) = prop.param("TZID") {
-                let tz = resolve_tzid(tzid)?;
+                let tz = resolve_tzid(tzid).unwrap_or(chrono_tz::UTC);
                 line.push_str(&format!(";TZID={}", tz.name()));
             } else if let Some(value) = prop.param("VALUE") {
                 line.push_str(&format!(";VALUE={}", value));
@@ -386,7 +437,7 @@ fn expand_recurrences(
 
     let set: rrule::RRuleSet = set_str.parse().ok()?;
     let result = set
-        .after(window_start.with_timezone(&rrule::Tz::UTC))
+        .after(lower_bound.with_timezone(&rrule::Tz::UTC))
         .before(window_end.with_timezone(&rrule::Tz::UTC))
         .all(MAX_OCCURRENCES);
 
@@ -414,7 +465,12 @@ fn format_time(t: IcsTime) -> String {
 
 fn add_duration(t: IcsTime, d: Duration) -> IcsTime {
     match t {
-        IcsTime::Date(date) => IcsTime::Date(date + Duration::days(d.num_days().max(0))),
+        IcsTime::Date(date) => {
+            // All-day spans are whole days: round any partial day up, min 1 day
+            // (a sub-day DURATION on an all-day event must not collapse to 0).
+            let days = ((d.num_seconds().max(0) + 86_399) / 86_400).max(1);
+            IcsTime::Date(date + Duration::days(days))
+        }
         IcsTime::Moment(m) => IcsTime::Moment(m + d),
     }
 }
@@ -474,6 +530,9 @@ fn events_in_window(
 
     let mut out = Vec::new();
     for ev in &raw_events {
+        if out.len() >= MAX_EVENTS {
+            break;
+        }
         if ev.value("STATUS").is_some_and(|s| s.eq_ignore_ascii_case("CANCELLED")) {
             continue;
         }
@@ -483,10 +542,14 @@ fn events_in_window(
         let duration = event_duration(ev, start);
         let is_override = ev.get("RECURRENCE-ID").is_some();
 
+        // Expand from `duration` before the window so a recurring occurrence
+        // that starts before window_start but is still in progress at the
+        // boundary isn't filtered out by `.after()` (in_window is authoritative).
+        let lookback = duration.clamp(Duration::zero(), Duration::days(366));
         let occurrence_starts: Vec<IcsTime> = if is_override {
             vec![start]
         } else if let Some(occurrences) =
-            expand_recurrences(ev, dtstart, window_start, window_end)
+            expand_recurrences(ev, dtstart, window_start - lookback, window_end)
         {
             occurrences
                 .into_iter()
@@ -658,5 +721,88 @@ mod tests {
         let prop = parse_prop("ORGANIZER;CN=\"X: Y\":mailto:a@b.c").expect("parses");
         assert_eq!(prop.name, "ORGANIZER");
         assert_eq!(prop.value, "mailto:a@b.c");
+    }
+
+    // ── Regression tests for the review fixes ──────────────────────────────
+
+    #[test]
+    fn recurring_occurrence_spanning_window_start_is_kept() {
+        // Daily 23:00–01:00 (2h) event; window starts at 00:00, so the
+        // occurrence that STARTED at 23:00 the previous day is still ongoing
+        // at the window edge and must not be dropped.
+        let ics = "BEGIN:VEVENT\nUID:span\nSUMMARY:Night shift\nDTSTART:20260614T230000Z\nDTEND:20260615T010000Z\nRRULE:FREQ=DAILY;COUNT=5\nEND:VEVENT";
+        let (ws, we) = window("2026-06-15T00:00:00Z", "2026-06-16T00:00:00Z");
+        let events = events_in_window(ics, &sub(), ws, we);
+        let starts: Vec<&str> = events.iter().map(|e| e.start_date.as_str()).collect();
+        // The 06-14T23:00 occurrence overlaps into the window and must appear,
+        // alongside the 06-15T23:00 one that starts inside it.
+        assert!(
+            starts.contains(&"2026-06-14T23:00:00Z"),
+            "boundary-spanning occurrence dropped: {starts:?}"
+        );
+        assert!(starts.contains(&"2026-06-15T23:00:00Z"), "{starts:?}");
+    }
+
+    #[test]
+    fn unknown_tzid_still_expands_the_series() {
+        // An unmappable TZID must not collapse a recurring series to one event.
+        let ics = "BEGIN:VEVENT\nUID:tz\nSUMMARY:Weekly\nDTSTART;TZID=Mars/Olympus:20260601T090000\nDTEND;TZID=Mars/Olympus:20260601T100000\nRRULE:FREQ=WEEKLY;COUNT=4\nEND:VEVENT";
+        let (ws, we) = window("2026-06-01T00:00:00Z", "2026-07-01T00:00:00Z");
+        let events = events_in_window(ics, &sub(), ws, we);
+        assert!(
+            events.len() >= 3,
+            "unmappable TZID collapsed the series to {} event(s)",
+            events.len()
+        );
+    }
+
+    #[test]
+    fn dst_spring_forward_gap_time_is_not_dropped() {
+        // 02:30 on 2026-03-29 does not exist in Europe/Amsterdam (clocks jump
+        // 02:00→03:00). The event must still be parsed, not silently dropped.
+        let ics = "BEGIN:VEVENT\nUID:dst\nSUMMARY:Gap\nDTSTART;TZID=Europe/Amsterdam:20260329T023000\nDTEND;TZID=Europe/Amsterdam:20260329T033000\nEND:VEVENT";
+        let (ws, we) = window("2026-03-28T00:00:00Z", "2026-03-30T00:00:00Z");
+        let events = events_in_window(ics, &sub(), ws, we);
+        assert_eq!(events.len(), 1, "DST-gap event was dropped");
+    }
+
+    #[test]
+    fn rdate_adds_extra_occurrences() {
+        let ics = "BEGIN:VEVENT\nUID:rd\nSUMMARY:WithRdate\nDTSTART:20260601T090000Z\nDTEND:20260601T100000Z\nRRULE:FREQ=WEEKLY;COUNT=2\nRDATE:20260610T090000Z\nEND:VEVENT";
+        let (ws, we) = window("2026-06-01T00:00:00Z", "2026-07-01T00:00:00Z");
+        let mut starts: Vec<String> =
+            events_in_window(ics, &sub(), ws, we).iter().map(|e| e.start_date.clone()).collect();
+        starts.sort();
+        assert!(starts.contains(&"2026-06-10T09:00:00Z".to_string()), "RDATE missing: {starts:?}");
+        assert_eq!(starts.len(), 3, "{starts:?}");
+    }
+
+    #[test]
+    fn floating_time_is_parsed() {
+        // No TZID and no trailing Z: floating time, interpreted in local tz.
+        let ics = "BEGIN:VEVENT\nUID:float\nSUMMARY:Floating\nDTSTART:20260615T120000\nDTEND:20260615T130000\nEND:VEVENT";
+        let (ws, we) = window("2026-06-14T00:00:00Z", "2026-06-17T00:00:00Z");
+        let events = events_in_window(ics, &sub(), ws, we);
+        assert_eq!(events.len(), 1);
+        assert!(!events[0].is_all_day);
+    }
+
+    #[test]
+    fn semicolon_inside_quoted_param_does_not_split() {
+        let prop = parse_prop("ATTENDEE;CN=\"Doe; John\";ROLE=REQ:mailto:j@x.y").expect("parses");
+        assert_eq!(prop.name, "ATTENDEE");
+        assert_eq!(prop.param("CN"), Some("Doe; John"));
+        assert_eq!(prop.param("ROLE"), Some("REQ"));
+        assert_eq!(prop.value, "mailto:j@x.y");
+    }
+
+    #[test]
+    fn all_day_subday_duration_spans_at_least_one_day() {
+        let ics = "BEGIN:VEVENT\nUID:ad\nSUMMARY:Odd\nDTSTART;VALUE=DATE:20260616\nDURATION:PT12H\nEND:VEVENT";
+        let (ws, we) = window("2026-06-14T00:00:00Z", "2026-06-20T00:00:00Z");
+        let events = events_in_window(ics, &sub(), ws, we);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].start_date, "2026-06-16");
+        assert_eq!(events[0].end_date, "2026-06-17");
     }
 }
