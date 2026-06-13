@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { SliceCreator } from './types';
 import { persist } from '../storeUtils';
 import { isMac } from '../../utils/platform';
-import type { CalendarInfo, CalendarEvent } from '../../types/task';
+import type { CalendarInfo, CalendarEvent, IcsSubscription } from '../../types/task';
 
 function loadPersistedCalendar() {
   try {
@@ -32,10 +32,14 @@ export interface CalendarSlice {
   calendarAccessGranted: boolean;
   /** Whether this platform has a system calendar integration (EventKit on macOS) */
   systemCalendarSupported: boolean;
+  icsSubscriptions: IcsSubscription[];
   calendarBlockingDefaults: Record<string, boolean>;
   eventBlockingOverrides: Record<string, boolean>;
 
   initCalendarSupport: () => Promise<void>;
+  fetchIcsSubscriptions: () => Promise<void>;
+  addIcsSubscription: (name: string, url: string) => Promise<void>;
+  removeIcsSubscription: (id: string) => Promise<void>;
   setCalendarEnabled: (enabled: boolean) => void;
   fetchCalendars: () => Promise<void>;
   fetchCalendarEvents: () => Promise<void>;
@@ -54,6 +58,7 @@ export const createCalendarSlice: SliceCreator<CalendarSlice> = (set, get) => ({
   calendarAccessGranted: false,
   // Optimistic guess from the user agent; confirmed by initCalendarSupport
   systemCalendarSupported: isMac,
+  icsSubscriptions: [],
   calendarBlockingDefaults: persisted.calendarBlockingDefaults,
   eventBlockingOverrides: persisted.eventBlockingOverrides,
 
@@ -63,6 +68,45 @@ export const createCalendarSlice: SliceCreator<CalendarSlice> = (set, get) => ({
       set({ systemCalendarSupported: supported });
     } catch (error) {
       console.error('Failed to check calendar support:', error);
+    }
+    await get().fetchIcsSubscriptions();
+  },
+
+  fetchIcsSubscriptions: async () => {
+    try {
+      const subs = await invoke<IcsSubscription[]>('get_ics_subscriptions');
+      set({ icsSubscriptions: subs });
+    } catch (error) {
+      console.error('Failed to fetch ICS subscriptions:', error);
+    }
+  },
+
+  addIcsSubscription: async (name: string, url: string) => {
+    const sub = await invoke<IcsSubscription>('add_ics_subscription', { name, url });
+    set({ icsSubscriptions: [...get().icsSubscriptions, sub] });
+    // New subscriptions start enabled, like system calendars do on first load
+    const { enabledCalendarNames } = get();
+    if (!enabledCalendarNames.includes(sub.name)) {
+      const newNames = [...enabledCalendarNames, sub.name];
+      set({ enabledCalendarNames: newNames });
+      persist('enabledCalendarNames', newNames);
+    }
+    if (get().calendarEnabled) {
+      await get().fetchCalendars();
+    }
+  },
+
+  removeIcsSubscription: async (id: string) => {
+    const sub = get().icsSubscriptions.find((s) => s.id === id);
+    await invoke('remove_ics_subscription', { id });
+    set({ icsSubscriptions: get().icsSubscriptions.filter((s) => s.id !== id) });
+    if (sub) {
+      const newNames = get().enabledCalendarNames.filter((n) => n !== sub.name);
+      set({ enabledCalendarNames: newNames });
+      persist('enabledCalendarNames', newNames);
+    }
+    if (get().calendarEnabled) {
+      await get().fetchCalendars();
     }
   },
 

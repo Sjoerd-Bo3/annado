@@ -78,17 +78,20 @@ function BlockContextMenu({ block, clickX, clickY, isTask, isPinned, isEvent, ha
     setPosition(style);
   }, [clickX, clickY]);
 
+  const isReadOnlyEvent = Boolean(block.event?.readOnly);
+
   useEffect(() => {
     if (!isEvent) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isPrimaryMod(e) && e.key === 't') { e.preventDefault(); onCreateTask(); }
       else if (isPrimaryMod(e) && e.key === 'b') { e.preventDefault(); onToggleBlocking(); }
+      else if (isReadOnlyEvent) return; // subscribed calendars can't be edited
       else if (isPrimaryMod(e) && e.key === 'e') { e.preventDefault(); onEditEvent(); }
       else if (e.key === 'Backspace') { e.preventDefault(); onDelete(); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isEvent, onCreateTask, onToggleBlocking, onEditEvent, onDelete]);
+  }, [isEvent, isReadOnlyEvent, onCreateTask, onToggleBlocking, onEditEvent, onDelete]);
 
   // Header info
   const title = block.event?.title || block.task?.title || block.title;
@@ -140,9 +143,13 @@ function BlockContextMenu({ block, clickX, clickY, isTask, isPinned, isEvent, ha
             {hasBlockingOverride && (
               <MenuItem dot="#999" label="Reset to calendar default" onClick={onResetBlocking} />
             )}
-            <div className="border-t border-[#f0eeeb] dark:border-[#3A3A3A]" />
-            <MenuItem dot="#999" label="Edit event" shortcut={primaryShortcutLabel('E')} onClick={onEditEvent} />
-            <MenuItem dot="#E53935" label="Delete" shortcut="Del" red onClick={onDelete} />
+            {!isReadOnlyEvent && (
+              <>
+                <div className="border-t border-[#f0eeeb] dark:border-[#3A3A3A]" />
+                <MenuItem dot="#999" label="Edit event" shortcut={primaryShortcutLabel('E')} onClick={onEditEvent} />
+                <MenuItem dot="#E53935" label="Delete" shortcut="Del" red onClick={onDelete} />
+              </>
+            )}
           </>
         )}
       </div>

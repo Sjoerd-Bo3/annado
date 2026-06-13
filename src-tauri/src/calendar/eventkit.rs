@@ -336,6 +336,7 @@ pub fn fetch_events(
                 location,
                 url,
                 notes,
+                read_only: false,
             });
         }
 
