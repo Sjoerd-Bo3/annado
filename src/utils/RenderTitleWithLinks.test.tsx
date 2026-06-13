@@ -4,7 +4,7 @@ import { RenderTitleWithLinks } from './RenderTitleWithLinks';
 import { useTaskStore } from '../stores/taskStore';
 
 vi.mock('@tauri-apps/plugin-opener', () => ({
-  openUrl: vi.fn(),
+  openUrl: vi.fn().mockResolvedValue(undefined),
 }));
 import { openUrl } from '@tauri-apps/plugin-opener';
 

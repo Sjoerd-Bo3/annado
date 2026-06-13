@@ -4,7 +4,7 @@ import { ViewType } from '../types/task';
 import { isDateUpcoming } from '../utils/dates';
 import { getProjectColor, getTagColor, PRIORITY_CONFIG } from '../utils/projectColors';
 import { viewIconsSmall, PersonIcon, TagIcon } from '../utils/viewIcons';
-import { matchesKeybinding } from '../utils/keybindings';
+import { KEYBINDING_DEFAULTS, matchesKeybinding } from '../utils/keybindings';
 import { useFocusWhen } from '../hooks/useFocus';
 
 type QuickFindResultType = 'task' | 'project' | 'person' | 'view' | 'tag';
@@ -368,7 +368,7 @@ export function QuickFind({ isOpen, onClose, initialQuery = '' }: QuickFindProps
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Check configurable keybindings first
-    if (e.key === 'ArrowDown' || matchesKeybinding(e, keybindings.navigateDown || 'ctrl+j')) {
+    if (e.key === 'ArrowDown' || matchesKeybinding(e, keybindings.navigateDown || KEYBINDING_DEFAULTS.navigateDown)) {
       e.preventDefault();
       e.stopPropagation();
       if (results.length > 0) {
@@ -377,7 +377,7 @@ export function QuickFind({ isOpen, onClose, initialQuery = '' }: QuickFindProps
       return;
     }
 
-    if (e.key === 'ArrowUp' || matchesKeybinding(e, keybindings.navigateUp || 'ctrl+k')) {
+    if (e.key === 'ArrowUp' || matchesKeybinding(e, keybindings.navigateUp || KEYBINDING_DEFAULTS.navigateUp)) {
       e.preventDefault();
       e.stopPropagation();
       if (results.length > 0) {

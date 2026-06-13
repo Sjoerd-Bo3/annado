@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { useTaskStore, QuickAddPrefill } from '../stores/taskStore';
 import { isDateUpcoming } from '../utils/dates';
+import { KEYBINDING_DEFAULTS } from '../utils/keybindings';
 
 const MAX_DEEP_LINK_PARAM_LENGTH = 1000;
 
@@ -51,7 +52,8 @@ export function useAppEvents() {
 
   // Calendar: fetch events on startup + refresh every 5 minutes
   useEffect(() => {
-    const { calendarEnabled, fetchCalendars } = useTaskStore.getState();
+    const { calendarEnabled, fetchCalendars, initCalendarSupport } = useTaskStore.getState();
+    initCalendarSupport();
     if (calendarEnabled) {
       fetchCalendars();
     }
@@ -150,16 +152,16 @@ export function useAppEvents() {
   // Register global shortcuts on startup and when keybindings change
   useEffect(() => {
     const { keybindings } = useTaskStore.getState();
-    const quickAddBinding = keybindings.globalQuickAdd || 'meta+shift+space';
-    const showAppBinding = keybindings.globalShowApp || 'meta+shift+a';
+    const quickAddBinding = keybindings.globalQuickAdd || KEYBINDING_DEFAULTS.globalQuickAdd;
+    const showAppBinding = keybindings.globalShowApp || KEYBINDING_DEFAULTS.globalShowApp;
     invoke('register_global_shortcuts', { quickAddBinding, showAppBinding })
       .catch((e) => console.error('[shortcuts] registration failed:', e));
 
     let lastQuickAdd = quickAddBinding;
     let lastShowApp = showAppBinding;
     const unsubscribe = useTaskStore.subscribe((state) => {
-      const newQuickAdd = state.keybindings.globalQuickAdd || 'meta+shift+space';
-      const newShowApp = state.keybindings.globalShowApp || 'meta+shift+a';
+      const newQuickAdd = state.keybindings.globalQuickAdd || KEYBINDING_DEFAULTS.globalQuickAdd;
+      const newShowApp = state.keybindings.globalShowApp || KEYBINDING_DEFAULTS.globalShowApp;
       if (newQuickAdd !== lastQuickAdd || newShowApp !== lastShowApp) {
         lastQuickAdd = newQuickAdd;
         lastShowApp = newShowApp;

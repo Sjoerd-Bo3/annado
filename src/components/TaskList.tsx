@@ -6,6 +6,7 @@ import { getTaskDate, limitGroupedTasks, groupTasksByCompletionDate, groupTasksB
 import { usePanelState } from '../hooks/usePanelState';
 import { usePanelId } from '../contexts/PanelContext';
 import { TaskItem } from './TaskItem';
+import { primaryShortcutLabel } from '../utils/platform';
 import { BulkActions } from './BulkActions';
 import { ViewType, Task, ProjectMetadata, PersonMetadata, RecurringTemplate, CalendarEvent, Milestone } from '../types/task';
 import { getProjectColor, getTagColor } from '../utils/projectColors';
@@ -1063,7 +1064,7 @@ export function TaskList({ onOpenRecurringModal }: TaskListProps) {
                   ? 'text-primary bg-[#E8EAF6] dark:bg-[#2A2D4A]'
                   : 'text-[#999] dark:text-[#666] hover:text-primary hover:bg-[#F0F0F0] dark:hover:bg-[#2A2A2A]'
               }`}
-              title={'Toggle side panel (⌘\\)'}
+              title={`Toggle side panel (${primaryShortcutLabel('\\')})`}
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -1233,7 +1234,7 @@ export function TaskList({ onOpenRecurringModal }: TaskListProps) {
                   <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 <p className="text-[14px] font-medium">No recurring tasks</p>
-                <p className="text-[12px] mt-1 opacity-70">Press ⌘R to create one</p>
+                <p className="text-[12px] mt-1 opacity-70">Press {primaryShortcutLabel('R')} to create one</p>
               </div>
             ) : (
               recurringTemplates.map((template) => (
@@ -1273,7 +1274,7 @@ export function TaskList({ onOpenRecurringModal }: TaskListProps) {
               />
             </svg>
             <p className="text-[14px] font-medium">No tasks</p>
-            <p className="text-[12px] mt-1 opacity-70">Press ⌘N to add a task</p>
+            <p className="text-[12px] mt-1 opacity-70">Press {primaryShortcutLabel('N')} to add a task</p>
           </div>
         ) : daySections.length > 0 ? (
           // Render Upcoming view with individual days, calendar events, and drag-and-drop

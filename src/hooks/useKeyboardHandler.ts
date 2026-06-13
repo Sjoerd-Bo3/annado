@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useTaskStore } from '../stores/taskStore';
-import { matchesKeybinding } from '../utils/keybindings';
+import { KEYBINDING_DEFAULTS, matchesKeybinding } from '../utils/keybindings';
+import { isPrimaryMod } from '../utils/platform';
 import { groupTasksByProject } from '../utils/taskGrouping';
 import type { RecurringTemplate, ViewType } from '../types/task';
 
@@ -46,20 +47,20 @@ export function useKeyboardHandler(opts: KeyboardHandlerOptions) {
           (e.target as HTMLElement).blur();
         }
         const { expandedTaskId, sidePanelExpandedTaskId } = useTaskStore.getState();
-        if (!e.metaKey || (!expandedTaskId && !sidePanelExpandedTaskId)) return;
+        if (!isPrimaryMod(e) || (!expandedTaskId && !sidePanelExpandedTaskId)) return;
       }
 
       // Check customizable keybindings (side panel toggle)
       {
         const { keybindings } = useTaskStore.getState();
-        if (matchesKeybinding(e, keybindings.toggleSidePanel || 'meta+\\')) {
+        if (matchesKeybinding(e, keybindings.toggleSidePanel || KEYBINDING_DEFAULTS.toggleSidePanel)) {
           e.preventDefault();
           useTaskStore.getState().toggleSidePanel();
           return;
         }
         // Undo last task change — never while typing (text fields keep native undo)
         if (
-          matchesKeybinding(e, keybindings.undo || 'meta+z') &&
+          matchesKeybinding(e, keybindings.undo || KEYBINDING_DEFAULTS.undo) &&
           !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)
         ) {
           e.preventDefault();
@@ -69,14 +70,14 @@ export function useKeyboardHandler(opts: KeyboardHandlerOptions) {
       }
 
       // Cmd+N to open quick add
-      if (e.metaKey && e.key === 'n') {
+      if (isPrimaryMod(e) && e.key === 'n') {
         e.preventDefault();
         useTaskStore.getState().openQuickAdd();
         return;
       }
 
       // Cmd+Shift+R to open recurring task modal
-      if (e.metaKey && e.shiftKey && e.key === 'r') {
+      if (isPrimaryMod(e) && e.shiftKey && e.key === 'r') {
         e.preventDefault();
         setEditingRecurringTemplate(null);
         setRecurringModalOpen(true);
@@ -85,14 +86,14 @@ export function useKeyboardHandler(opts: KeyboardHandlerOptions) {
 
       const { keybindings } = useTaskStore.getState();
 
-      if (matchesKeybinding(e, keybindings.quickFind || 'meta+f')) {
+      if (matchesKeybinding(e, keybindings.quickFind || KEYBINDING_DEFAULTS.quickFind)) {
         e.preventDefault();
         setQuickFindInitialQuery('');
         setQuickFindOpen(true);
         return;
       }
 
-      if (matchesKeybinding(e, keybindings.moveToProject || 'meta+shift+m')) {
+      if (matchesKeybinding(e, keybindings.moveToProject || KEYBINDING_DEFAULTS.moveToProject)) {
         e.preventDefault();
         const { selectedIds, expandedId } = getActivePanelContext();
         if (selectedIds.length > 0 || expandedId) {
@@ -102,7 +103,7 @@ export function useKeyboardHandler(opts: KeyboardHandlerOptions) {
       }
 
       // Show When - opens the When picker for the selected task
-      if (matchesKeybinding(e, keybindings.showWhen || 'meta+s')) {
+      if (matchesKeybinding(e, keybindings.showWhen || KEYBINDING_DEFAULTS.showWhen)) {
         e.preventDefault();
         const state = useTaskStore.getState();
         const { selectedIds, expandedId, expand } = getActivePanelContext();
@@ -115,7 +116,7 @@ export function useKeyboardHandler(opts: KeyboardHandlerOptions) {
       }
 
       // Show Deadline - opens the Deadline picker for the selected task
-      if (matchesKeybinding(e, keybindings.showDeadline || 'meta+d')) {
+      if (matchesKeybinding(e, keybindings.showDeadline || KEYBINDING_DEFAULTS.showDeadline)) {
         e.preventDefault();
         const state = useTaskStore.getState();
         const { selectedIds, expandedId, expand } = getActivePanelContext();
@@ -128,7 +129,7 @@ export function useKeyboardHandler(opts: KeyboardHandlerOptions) {
       }
 
       // Start Today - sets selected task(s) to "today"
-      if (matchesKeybinding(e, keybindings.startToday || 'meta+t')) {
+      if (matchesKeybinding(e, keybindings.startToday || KEYBINDING_DEFAULTS.startToday)) {
         e.preventDefault();
         const state = useTaskStore.getState();
         const { selectedIds, expandedId } = getActivePanelContext();
@@ -140,7 +141,7 @@ export function useKeyboardHandler(opts: KeyboardHandlerOptions) {
       }
 
       // Delete Task - deletes selected task(s)
-      if (matchesKeybinding(e, keybindings.deleteTask || 'meta+backspace')) {
+      if (matchesKeybinding(e, keybindings.deleteTask || KEYBINDING_DEFAULTS.deleteTask)) {
         e.preventDefault();
         const state = useTaskStore.getState();
         const { selectedIds, expandedId } = getActivePanelContext();
@@ -157,7 +158,7 @@ export function useKeyboardHandler(opts: KeyboardHandlerOptions) {
       }
 
       // Complete Task - toggles completion of selected task(s)
-      if (matchesKeybinding(e, keybindings.completeTask || 'meta+k')) {
+      if (matchesKeybinding(e, keybindings.completeTask || KEYBINDING_DEFAULTS.completeTask)) {
         e.preventDefault();
         const state = useTaskStore.getState();
         const { selectedIds, expandedId } = getActivePanelContext();
@@ -214,8 +215,8 @@ export function useKeyboardHandler(opts: KeyboardHandlerOptions) {
       }
 
       // Up/Down navigation
-      const isNavigateDown = e.key === 'ArrowDown' || matchesKeybinding(e, keybindings.navigateDown || 'ctrl+j');
-      const isNavigateUp = e.key === 'ArrowUp' || matchesKeybinding(e, keybindings.navigateUp || 'ctrl+k');
+      const isNavigateDown = e.key === 'ArrowDown' || matchesKeybinding(e, keybindings.navigateDown || KEYBINDING_DEFAULTS.navigateDown);
+      const isNavigateUp = e.key === 'ArrowUp' || matchesKeybinding(e, keybindings.navigateUp || KEYBINDING_DEFAULTS.navigateUp);
 
       if (isNavigateDown || isNavigateUp) {
         e.preventDefault();

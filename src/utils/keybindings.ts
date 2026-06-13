@@ -12,14 +12,24 @@ export function matchesKeybinding(e: KeyboardEvent | React.KeyboardEvent, bindin
   return modMatch && e.key.toLowerCase() === key;
 }
 
+import { PRIMARY_MOD, isMac } from './platform';
+
+// Defaults follow the platform's primary modifier: Cmd on macOS, Ctrl elsewhere.
+// Custom bindings persisted by the user always win over these.
+const mod = PRIMARY_MOD;
+
 export const KEYBINDING_DEFAULTS: Record<string, string> = {
-  moveToProject: 'meta+shift+m', quickFind: 'meta+f', navigateDown: 'ctrl+j',
-  navigateUp: 'ctrl+k', globalQuickAdd: 'meta+shift+space', globalShowApp: 'meta+shift+a',
-  showWhen: 'meta+s', showDeadline: 'meta+d', startToday: 'meta+t',
-  deleteTask: 'meta+backspace', completeTask: 'meta+k', toggleSidePanel: 'meta+\\',
-  undo: 'meta+z',
-  viewInbox: 'meta+1', viewToday: 'meta+2', viewAgenda: 'meta+3',
-  viewUpcoming: 'meta+4', viewAnytime: 'meta+5', viewSomeday: 'meta+6',
-  viewLogbook: 'meta+7', viewRecurring: 'meta+8', viewWrapped: 'meta+9',
-  viewAddedToday: 'meta+0', viewReview: 'meta+r',
+  moveToProject: `${mod}+shift+m`, quickFind: `${mod}+f`,
+  // macOS navigates lists with ctrl+j/k; elsewhere ctrl is the primary
+  // modifier (completeTask is ctrl+k), so navigation moves to alt+j/k
+  navigateDown: isMac ? 'ctrl+j' : 'alt+j',
+  navigateUp: isMac ? 'ctrl+k' : 'alt+k',
+  globalQuickAdd: `${mod}+shift+space`, globalShowApp: `${mod}+shift+a`,
+  showWhen: `${mod}+s`, showDeadline: `${mod}+d`, startToday: `${mod}+t`,
+  deleteTask: `${mod}+backspace`, completeTask: `${mod}+k`, toggleSidePanel: `${mod}+\\`,
+  undo: `${mod}+z`,
+  viewInbox: `${mod}+1`, viewToday: `${mod}+2`, viewAgenda: `${mod}+3`,
+  viewUpcoming: `${mod}+4`, viewAnytime: `${mod}+5`, viewSomeday: `${mod}+6`,
+  viewLogbook: `${mod}+7`, viewRecurring: `${mod}+8`, viewWrapped: `${mod}+9`,
+  viewAddedToday: `${mod}+0`, viewReview: `${mod}+r`,
 };

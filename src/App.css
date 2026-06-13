@@ -14,7 +14,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI Variable Text', 'Segoe UI', 'Helvetica Neue', sans-serif;
   font-size: 14px;
   line-height: 1.5;
   font-weight: 400;

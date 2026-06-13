@@ -6,6 +6,7 @@ import { WhenDatePicker } from '../../components/WhenDatePicker';
 import { WikilinkRenderer } from '../../components/WikilinkRenderer';
 import { formatDateForDisplay, formatDateForStorage, getToday } from '../../utils/dates';
 import { openInEditor, editorLabel } from '../../utils/openInEditor';
+import { isPrimaryMod } from '../../utils/platform';
 
 const STEPS = [
   { title: 'Process your inbox',   empty: 'Inbox is empty' },
@@ -663,8 +664,8 @@ export function ReviewView() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
-      // Cmd+K — complete task (steps 0–2)
-      if (e.metaKey && !e.shiftKey && !e.altKey && e.key === 'k' && step <= 2 && currentItem) {
+      // Cmd/Ctrl+K — complete task (steps 0–2)
+      if (isPrimaryMod(e) && !e.shiftKey && !e.altKey && e.key === 'k' && step <= 2 && currentItem) {
         e.preventDefault();
         toggleTaskComplete((currentItem as Task).id);
         setSchedulingTask(null);

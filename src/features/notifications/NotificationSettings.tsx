@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Toggle } from '../../components/Toggle';
+import { isMac } from '../../utils/platform';
 
 interface NotificationPrefs {
   trayEnabled: boolean;
@@ -120,11 +121,11 @@ export function NotificationSettings() {
       {/* Menu Bar */}
       <div>
         <h3 className="text-[10px] font-semibold text-[#B0B0B0] dark:text-[#555] uppercase tracking-wider mb-3">
-          Menu Bar
+          {isMac ? 'Menu Bar' : 'System Tray'}
         </h3>
         <SettingRow
-          label="Show menu bar icon"
-          detail="Click the icon in the macOS menu bar to open a quick task panel"
+          label={isMac ? 'Show menu bar icon' : 'Show system tray icon'}
+          detail={`Click the icon in the ${isMac ? 'macOS menu bar' : 'system tray'} to open a quick task panel`}
           checked={prefs.trayEnabled}
           onToggle={handleTrayToggle}
         />

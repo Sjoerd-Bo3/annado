@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { SliceCreator } from './types';
 import { persist } from '../storeUtils';
+import { isMac } from '../../utils/platform';
 import type { CalendarInfo, CalendarEvent } from '../../types/task';
 
 function loadPersistedCalendar() {
@@ -29,9 +30,12 @@ export interface CalendarSlice {
   availableCalendars: CalendarInfo[];
   enabledCalendarNames: string[];
   calendarAccessGranted: boolean;
+  /** Whether this platform has a system calendar integration (EventKit on macOS) */
+  systemCalendarSupported: boolean;
   calendarBlockingDefaults: Record<string, boolean>;
   eventBlockingOverrides: Record<string, boolean>;
 
+  initCalendarSupport: () => Promise<void>;
   setCalendarEnabled: (enabled: boolean) => void;
   fetchCalendars: () => Promise<void>;
   fetchCalendarEvents: () => Promise<void>;
@@ -48,8 +52,19 @@ export const createCalendarSlice: SliceCreator<CalendarSlice> = (set, get) => ({
   availableCalendars: [],
   enabledCalendarNames: persisted.enabledCalendarNames,
   calendarAccessGranted: false,
+  // Optimistic guess from the user agent; confirmed by initCalendarSupport
+  systemCalendarSupported: isMac,
   calendarBlockingDefaults: persisted.calendarBlockingDefaults,
   eventBlockingOverrides: persisted.eventBlockingOverrides,
+
+  initCalendarSupport: async () => {
+    try {
+      const supported = await invoke<boolean>('is_system_calendar_supported');
+      set({ systemCalendarSupported: supported });
+    } catch (error) {
+      console.error('Failed to check calendar support:', error);
+    }
+  },
 
   setCalendarEnabled: (enabled: boolean) => {
     set({ calendarEnabled: enabled });

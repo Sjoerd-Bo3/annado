@@ -17,6 +17,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useTaskStore } from '../stores/taskStore';
 import { ViewType, getWhenType, ProjectInfo, PersonInfo, SmartList } from '../types/task';
 import { ContextMenu } from './ContextMenu';
+import { isMac, isPrimaryMod } from '../utils/platform';
 
 // Heavy modals load on first open — keeps the startup bundle small.
 const SettingsModal = lazy(() => import('./SettingsModal').then((m) => ({ default: m.SettingsModal })));
@@ -315,7 +316,7 @@ export function Sidebar() {
   // Cmd+, to open settings/shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.metaKey && e.key === ',') {
+      if (isPrimaryMod(e) && e.key === ',') {
         e.preventDefault();
         setShowShortcuts(true);
       }
@@ -563,8 +564,8 @@ export function Sidebar() {
       className="bg-[#F8F7F6] dark:bg-[#1E1E1E] flex flex-col h-full relative"
       style={{ width: sidebarWidth }}
     >
-      {/* Traffic light padding for macOS */}
-      <div className="h-12 titlebar-drag" />
+      {/* Traffic light padding for macOS; other platforms keep a slim drag strip */}
+      <div className={`${isMac ? 'h-12' : 'h-8'} titlebar-drag`} />
 
 
       <nav className="flex-1 px-4 overflow-y-auto overflow-x-hidden">
