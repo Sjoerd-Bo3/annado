@@ -371,20 +371,23 @@ launch banner · send-test button.
 
 | Action | Binding | | Action | Binding |
 |---|---|---|---|---|
-| Quick Add | mod+N | | Complete task | mod+K |
+| Quick Add † | mod+N | | Complete task | mod+K |
 | Global Quick Add | mod+shift+space | | Delete task | mod+backspace |
 | Show app (global) | mod+shift+A | | When picker | mod+S |
 | Quick Find | mod+F | | Deadline picker | mod+D |
-| New recurring | mod+shift+R | | Start today | mod+T |
+| New recurring † | mod+shift+R | | Start today | mod+T |
 | Move to project | mod+shift+M | | Toggle side panel | mod+\ |
 | Undo | mod+Z | | Settings | mod+, |
 | Navigate down/up | ctrl+J/K (mac-style) or alt+J/K | | Views | mod+1…0, mod+R |
 | Multi-select | mod+click | | Expand/collapse | Enter |
 | Agenda today / day / week | T, ←→, shift+←→ | | Review actions | 1–4, mod+K, O |
 
-All "customizable" bindings live in localStorage (`keybindings`) and are
-edited via a record-keystroke widget; allowed keys: letters, digits, space,
-enter, escape, backspace, tab + any modifier combo.
+† Quick Add (`mod+N`) and New recurring (`mod+shift+R`) are **fixed** — they're
+hardcoded in `useKeyboardHandler` and not part of the rebindable set.
+
+All other bindings are customizable: they live in localStorage (`keybindings`)
+and are edited via a record-keystroke widget; allowed keys: letters, digits,
+space, enter, escape, backspace, tab + any modifier combo.
 
 ---
 
