@@ -88,9 +88,9 @@ export function SidePanel() {
         />
         )}
 
-        {/* Header */}
+        {/* Header (no titlebar drag region on the narrow full-screen sheet) */}
         <div
-          className={`flex items-center gap-2 px-4 pb-3 titlebar-drag ${isNarrow ? '' : 'pt-12'}`}
+          className={`flex items-center gap-2 px-4 pb-3 ${isNarrow ? '' : 'pt-12 titlebar-drag'}`}
           style={isNarrow ? { paddingTop: 'max(env(safe-area-inset-top), 16px)' } : undefined}
         >
           {subViewLabel ? (

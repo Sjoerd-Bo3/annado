@@ -4,16 +4,19 @@ import { useSyncExternalStore } from 'react';
 // side panel becomes a full-screen sheet
 const QUERY = '(max-width: 767px)';
 
+// One MediaQueryList shared by subscribe + getSnapshot (avoids creating a new
+// MQL on every render).
+const mql = typeof window !== 'undefined' ? window.matchMedia(QUERY) : null;
+
 function subscribe(callback: () => void) {
-  const mql = window.matchMedia(QUERY);
-  mql.addEventListener('change', callback);
-  return () => mql.removeEventListener('change', callback);
+  mql?.addEventListener('change', callback);
+  return () => mql?.removeEventListener('change', callback);
 }
 
 export function useIsNarrow(): boolean {
   return useSyncExternalStore(
     subscribe,
-    () => window.matchMedia(QUERY).matches,
+    () => mql?.matches ?? false,
     () => false,
   );
 }

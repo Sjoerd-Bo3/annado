@@ -54,9 +54,14 @@ function App() {
   const { vaultPath, currentView } = useTaskStore(useShallow((s) => ({ vaultPath: s.vaultPath, currentView: s.currentView, })));
   const isNarrow = useIsNarrow();
 
-  // Phone widths: close the sidebar drawer whenever navigation happens
+  // Phone widths: close the sidebar drawer whenever navigation happens.
+  // When the viewport grows back to desktop width, clear any leftover
+  // drawer-open state so it doesn't reappear already-open if shrunk again.
   useEffect(() => {
-    if (!isNarrow) return;
+    if (!isNarrow) {
+      useTaskStore.getState().setMobileSidebarOpen(false);
+      return;
+    }
     return useTaskStore.subscribe((state, prev) => {
       if (
         state.currentView !== prev.currentView ||
