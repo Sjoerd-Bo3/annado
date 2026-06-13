@@ -5,6 +5,7 @@ import { useTaskStore } from '../stores/taskStore';
 import { TaskList } from './TaskList';
 import { ViewType } from '../types/task';
 import { viewIconsSmall } from '../utils/viewIcons';
+import { useIsNarrow } from '../hooks/useIsNarrow';
 
 const viewOptions: { value: ViewType; label: string }[] = [
   { value: 'today', label: 'Today' },
@@ -20,6 +21,7 @@ export function SidePanel() {
 
   const [isResizing, setIsResizing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const isNarrow = useIsNarrow();
 
   // Handle resize drag
   useEffect(() => {
@@ -59,17 +61,24 @@ export function SidePanel() {
     setSidePanelSelectedTag(null);
   };
 
+  if (isNarrow && !sidePanelOpen) return null;
+
   return (
     <div
       ref={panelRef}
-      className="side-panel flex-shrink-0 relative bg-[#FEFEFE] dark:bg-[#1A1A1A] border-l border-[#E8E8E8] dark:border-[#2A2A2A]"
-      style={{ width: sidePanelOpen ? sidePanelWidth : 0 }}
+      className={
+        isNarrow
+          ? 'side-panel fixed inset-0 z-40 bg-[#FEFEFE] dark:bg-[#1A1A1A]'
+          : 'side-panel flex-shrink-0 relative bg-[#FEFEFE] dark:bg-[#1A1A1A] border-l border-[#E8E8E8] dark:border-[#2A2A2A]'
+      }
+      style={isNarrow ? undefined : { width: sidePanelOpen ? sidePanelWidth : 0 }}
     >
       <div
         className="h-full min-h-0 flex flex-col"
-        style={{ minWidth: sidePanelWidth }}
+        style={isNarrow ? undefined : { minWidth: sidePanelWidth }}
       >
-        {/* Resize handle on left edge */}
+        {/* Resize handle on left edge (pointer devices only) */}
+        {!isNarrow && (
         <div
           className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/30 transition-colors z-10"
           onMouseDown={(e) => {
@@ -77,9 +86,13 @@ export function SidePanel() {
             setIsResizing(true);
           }}
         />
+        )}
 
-        {/* Header */}
-        <div className="flex items-center gap-2 px-4 pt-12 pb-3 titlebar-drag">
+        {/* Header (no titlebar drag region on the narrow full-screen sheet) */}
+        <div
+          className={`flex items-center gap-2 px-4 pb-3 ${isNarrow ? '' : 'pt-12 titlebar-drag'}`}
+          style={isNarrow ? { paddingTop: 'max(env(safe-area-inset-top), 16px)' } : undefined}
+        >
           {subViewLabel ? (
             <>
               <button
