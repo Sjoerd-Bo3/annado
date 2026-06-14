@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { startWindowDrag } from './backend';
 import { isDesktop, isWindows } from './utils/platform';
 import { useIsNarrow } from './hooks/useIsNarrow';
 import { DndContext, DragOverlay } from '@dnd-kit/core';
@@ -128,7 +128,7 @@ function App() {
             // Only drag if not clicking on interactive elements
             if ((e.target as HTMLElement).closest('button, input, select, a')) return;
             e.preventDefault();
-            getCurrentWindow().startDragging();
+            startWindowDrag();
           }}
         />}
         {/* Phone widths: floating button opening the sidebar drawer; sits in

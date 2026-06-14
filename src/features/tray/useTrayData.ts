@@ -1,6 +1,5 @@
+import { invoke, listen } from '../../backend';
 import { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import { Task, PersonInfo, ProjectInfo } from '../../types/task';
 import { isDateTodayOrEarlier } from '../../utils/dates';
 

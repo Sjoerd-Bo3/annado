@@ -1,5 +1,5 @@
 import { useLayoutEffect } from 'react';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { setWindowBackground } from '../backend';
 import { useTaskStore } from '../stores/taskStore';
 import { shadeHex } from '../utils/projectColors';
 
@@ -7,9 +7,7 @@ import { shadeHex } from '../utils/projectColors';
 // (#FEFEFE / #1A1A1A), so the strip the webview exposes while it lags
 // behind a live resize is invisible instead of OS-default grey.
 function syncWindowBackground(isDark: boolean) {
-  getCurrentWindow()
-    .setBackgroundColor(isDark ? [26, 26, 26] : [254, 254, 254])
-    .catch(() => {}); // no-op outside Tauri (vitest, plain browser)
+  void setWindowBackground(isDark ? [26, 26, 26] : [254, 254, 254]);
 }
 
 export function useTheme() {

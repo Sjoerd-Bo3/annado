@@ -1,5 +1,5 @@
+import { invoke } from '../../backend';
 import { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { Toggle } from '../../components/Toggle';
 import { isMac } from '../../utils/platform';
 

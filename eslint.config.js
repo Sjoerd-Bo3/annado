@@ -22,5 +22,26 @@ export default tseslint.config(
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
     },
+  },
+  {
+    // The platform seam: the UI must reach Tauri only through src/backend/.
+    // Keep `@tauri-apps/*` imports out of the rest of the app so the same UI
+    // can run under a different host (Obsidian plugin, web) by swapping the
+    // backend implementation.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/backend/**', '**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@tauri-apps/*'],
+              message: 'Import platform access from "../backend" instead of @tauri-apps/* directly (keeps the UI host-agnostic).',
+            },
+          ],
+        },
+      ],
+    },
   }
 );

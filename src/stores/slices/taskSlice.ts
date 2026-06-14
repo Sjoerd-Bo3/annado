@@ -1,5 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { invoke, listen } from '../../backend';
 import type { SliceCreator } from './types';
 import { storeError } from '../storeUtils';
 import { _vaultVersion } from './settingsSlice';
