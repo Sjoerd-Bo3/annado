@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { open } from '@tauri-apps/plugin-dialog';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, pickDirectory } from '../backend';
 import { useTaskStore } from '../stores/taskStore';
 import { isIOS } from '../utils/platform';
 
@@ -11,12 +10,8 @@ export function VaultSelector() {
   const handleSelectVault = async () => {
     try {
       setLocalError(null);
-      const selected = await open({
-        directory: true,
-        title: 'Select your vault folder',
-      });
-
-      if (selected && typeof selected === 'string') {
+      const selected = await pickDirectory('Select your vault folder');
+      if (selected) {
         await setVaultPath(selected);
       }
     } catch (err) {

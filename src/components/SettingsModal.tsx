@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { open } from '@tauri-apps/plugin-dialog';
-import { getVersion } from '@tauri-apps/api/app';
+import { pickDirectory, getAppVersion } from '../backend';
 import { useTaskStore } from '../stores/taskStore';
 import { PROJECT_COLORS, DEFAULT_ACCENT } from '../utils/projectColors';
 import { ScheduleBreak, DEFAULT_WORK_SCHEDULE } from '../features/agenda/types';
@@ -64,7 +63,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsProps) {
 
   // Real version from tauri.conf.json; the fallback covers non-Tauri contexts
   useEffect(() => {
-    getVersion().then(setAppVersion).catch(() => {});
+    getAppVersion().then(setAppVersion).catch(() => {});
   }, []);
 
   // Update local state when store changes
@@ -99,12 +98,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsProps) {
   const handleChangeVault = async () => {
     try {
       setIsChangingVault(true);
-      const selected = await open({
-        directory: true,
-        title: 'Select your vault folder',
-      });
-
-      if (selected && typeof selected === 'string') {
+      const selected = await pickDirectory('Select your vault folder');
+      if (selected) {
         await setVaultPath(selected);
         onClose();
       }

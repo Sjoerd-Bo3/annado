@@ -1,6 +1,5 @@
 import { useState, useLayoutEffect, useRef } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { invoke, hideWindow } from '../../backend';
 import { Task, WhenValue, ProjectInfo } from '../../types/task';
 import { TaskCheckbox } from '../../components/TaskCheckbox';
 import {
@@ -209,12 +208,12 @@ export function TrayPopup() {
 
   const handleOpenAnnado = async () => {
     await invoke('show_main_window');
-    await getCurrentWindow().hide();
+    await hideWindow();
   };
 
   const handleOpenTask = async (taskId: string) => {
     await invoke('open_task_in_main', { id: taskId });
-    await getCurrentWindow().hide();
+    await hideWindow();
   };
 
   const applyLocal = (tasks: Task[]) =>

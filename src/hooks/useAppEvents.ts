@@ -1,6 +1,5 @@
+import { invoke, listen } from '../backend';
 import { useEffect, useRef } from 'react';
-import { listen } from '@tauri-apps/api/event';
-import { invoke } from '@tauri-apps/api/core';
 import { useTaskStore, QuickAddPrefill } from '../stores/taskStore';
 import type { Task } from '../types/task';
 import { isDateUpcoming } from '../utils/dates';

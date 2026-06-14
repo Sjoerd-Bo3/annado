@@ -1,5 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
-import { openUrl } from '@tauri-apps/plugin-opener';
+import { invoke, openExternal } from '../backend';
 import { getObsidianUrl } from './obsidian';
 import type { EditorType } from '../types/task';
 
@@ -12,9 +11,9 @@ export async function openInEditor(
   customCommand: string,
 ): Promise<void> {
   if (isObsidianVault) {
-    await openUrl(getObsidianUrl(vaultPath, filePath));
+    await openExternal(getObsidianUrl(vaultPath, filePath));
   } else if (editorType === 'vscode') {
-    await openUrl(`vscode://file/${filePath}:${lineNumber}`);
+    await openExternal(`vscode://file/${filePath}:${lineNumber}`);
   } else {
     await invoke('open_file_in_editor', { filePath, lineNumber, editorType, customCommand });
   }

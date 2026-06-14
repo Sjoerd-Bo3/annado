@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { openUrl } from '@tauri-apps/plugin-opener';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, openExternal } from '../../backend';
 import { AgendaBlock } from './types';
 import { useTaskStore } from '../../stores/taskStore';
 import { useAgendaNames } from './useAgendaNames';
@@ -418,7 +417,7 @@ export function TimeBlock({ block, columnOffset = 0, columnWidth = '100%', overl
           {isEvent && meetingUrl && (
             <button
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => { e.stopPropagation(); openUrl(meetingUrl); }}
+              onClick={(e) => { e.stopPropagation(); openExternal(meetingUrl); }}
               className="flex-shrink-0 rounded p-0.5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
               title="Join meeting"
             >

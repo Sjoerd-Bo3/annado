@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '../../backend';
 import type { SliceCreator } from './types';
 import { persist } from '../storeUtils';
 import { isMac } from '../../utils/platform';

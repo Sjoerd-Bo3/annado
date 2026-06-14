@@ -1,5 +1,5 @@
 import React from 'react';
-import { openUrl } from '@tauri-apps/plugin-opener';
+import { openExternal } from '../backend';
 import { ProjectInfo } from '../types/task';
 import { getProjectColor } from './projectColors';
 import { getObsidianNoteUrl } from './obsidian';
@@ -34,7 +34,7 @@ export function MarkdownLink({ text, url }: { text: string; url: string }) {
     // Bare absolute paths ("/Users/…/file.pdf") aren't valid URLs for the
     // opener — convert to a file:// URL (encodeURI handles the spaces).
     const target = url.startsWith('/') ? 'file://' + encodeURI(url) : url;
-    openUrl(target).catch((err) => console.warn('Failed to open link:', target, err));
+    openExternal(target).catch((err) => console.warn('Failed to open link:', target, err));
   };
 
   return (
@@ -62,7 +62,7 @@ function ObsidianNoteLink({
     <button
       onClick={(e) => {
         e.stopPropagation();
-        openUrl(getObsidianNoteUrl(vaultPath, name));
+        openExternal(getObsidianNoteUrl(vaultPath, name));
       }}
       onContextMenu={onContextMenu ? (e) => {
         e.preventDefault();

@@ -1,4 +1,4 @@
-import { openUrl } from '@tauri-apps/plugin-opener';
+import { openExternal } from '../backend';
 
 const REPO_URL = 'https://github.com/ABeehive/annado';
 
@@ -24,7 +24,7 @@ export function AboutSettings({ version }: { version: string }) {
           <span key={link.label} className="flex items-center gap-2">
             {i > 0 && <span className="text-[11px] text-[#D0D0D0] dark:text-[#555]">·</span>}
             <button
-              onClick={() => openUrl(link.url)}
+              onClick={() => openExternal(link.url)}
               className="text-[12px] text-primary hover:underline transition-colors"
             >
               {link.label}
