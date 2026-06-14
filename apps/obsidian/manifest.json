@@ -1,0 +1,9 @@
+{
+  "id": "annado",
+  "name": "Annado",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "A vault-native task manager: parse, schedule, and complete Markdown tasks with a bespoke agenda and review workflow.",
+  "author": "Annado",
+  "isDesktopOnly": false
+}
