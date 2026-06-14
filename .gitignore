@@ -31,3 +31,6 @@ dist-ssr
 
 # Git worktrees
 .worktrees
+
+# Claude Code local state and agent worktrees (never commit)
+.claude/
