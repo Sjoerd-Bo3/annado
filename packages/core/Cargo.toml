@@ -30,3 +30,10 @@ wasm-bindgen = { version = "0.2", optional = true }
 serde-wasm-bindgen = { version = "0.6", optional = true }
 # rrule/uuid pull in getrandom; on wasm it needs the `js` backend to find an RNG.
 getrandom = { version = "0.2", features = ["js"], optional = true }
+
+# wasm-pack tries to download the `binaryen` `wasm-opt` binary to shrink the
+# `.wasm`. That download needs network access and isn't required for a correct
+# build, so it's disabled here; size-optimization can be re-enabled in CI where
+# binaryen is available (`wasm-opt = true`).
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
