@@ -46,3 +46,54 @@ jobs:
             libayatana-appindicator3-dev librsvg2-dev
       - run: cargo check --all-targets
       - run: cargo test
+
+  # The Rust→WASM core (packages/core): native tests + the wasm32 build that the
+  # Obsidian plugin consumes.
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/core
+      - name: cargo test (native)
+        run: cargo test --manifest-path packages/core/Cargo.toml
+      - name: cargo build (wasm32)
+        run: >
+          cargo build --manifest-path packages/core/Cargo.toml
+          --target wasm32-unknown-unknown --features wasm
+
+  # The Obsidian plugin (apps/obsidian): generate the WASM package, then
+  # type-check + bundle main.js. Needs the Rust toolchain for wasm-pack.
+  obsidian:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/core
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+      - name: Build the WASM core package (packages/core/pkg)
+        run: wasm-pack build packages/core --target web --out-dir pkg --features wasm
+      - name: Install root dependencies
+        run: npm ci
+      - name: Install plugin dependencies
+        working-directory: apps/obsidian
+        run: npm ci
+      - name: Type-check the plugin
+        working-directory: apps/obsidian
+        run: npx tsc --noEmit
+      - name: Bundle the plugin (main.js)
+        working-directory: apps/obsidian
+        run: npm run build

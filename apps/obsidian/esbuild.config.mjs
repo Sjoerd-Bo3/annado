@@ -9,6 +9,11 @@ const here = dirname(fileURLToPath(import.meta.url));
 // through the `@app/*` path alias (see tsconfig.json); mirror that here so
 // esbuild can resolve those imports to the real files.
 const repoSrc = resolve(here, '../../src');
+// The Rust→WASM core, emitted by `wasm-pack build packages/core --target web
+// --out-dir pkg`. `pkg/` is git-ignored (generated); run that command (the
+// `obsidian` CI job does) before building. We alias the package name to it so
+// `core.ts` can `import … from 'annado-core'`.
+const corePkg = resolve(here, '../../packages/core/pkg');
 
 const prod = process.argv[2] === 'production';
 
@@ -28,12 +33,15 @@ const context = await esbuild.context({
   // Obsidian provides `obsidian` and `electron`; Node builtins are not
   // available in the (mobile) runtime and must never be bundled.
   external: ['obsidian', 'electron', '@codemirror/*', ...builtins],
-  // Match the `@app/*` tsconfig path alias for the shared UI in repo src/.
-  alias: { '@app': repoSrc },
+  // Match the `@app/*` tsconfig path alias for the shared UI in repo src/, and
+  // resolve the WASM core package by name to its generated `pkg/` folder.
+  alias: { '@app': repoSrc, 'annado-core': corePkg },
   jsx: 'automatic',
   // PR 2 ships no styling: ignore CSS side-effect imports so they don't pull
   // raw text into the bundle. PR 4 introduces a scoped styles.css pipeline.
-  loader: { '.css': 'empty' },
+  // The `.wasm` is inlined as base64 (decoded + instantiated in core.ts) so the
+  // engine ships inside main.js with no runtime fetch (works on mobile).
+  loader: { '.css': 'empty', '.wasm': 'base64' },
   define: { 'process.env.NODE_ENV': prod ? '"production"' : '"development"' },
   logLevel: 'info',
   sourcemap: prod ? false : 'inline',
