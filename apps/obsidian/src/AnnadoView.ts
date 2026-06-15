@@ -34,6 +34,11 @@ export class AnnadoView extends ItemView {
   async onOpen(): Promise<void> {
     this.contentEl.empty();
     const mount = this.contentEl.createDiv({ cls: 'annado-root' });
+    // "Hosted in a leaf" flag. A leaf is a sub-pane, not the viewport, so the
+    // shared App's full-viewport sizing (h-screen / 100vh) must collapse to
+    // 100% of this container. styles.css keys its leaf overrides off this
+    // attribute; the Tauri app never sets it and keeps full-viewport sizing.
+    mount.dataset.annadoHost = 'obsidian-leaf';
     this.root = createRoot(mount);
     this.root.render(createElement(StrictMode, null, createElement(App)));
   }

@@ -1,0 +1,230 @@
+/*
+ * Annado plugin stylesheet — the scoped twin of the Tauri app's src/App.css.
+ *
+ * Everything here is compiled by PostCSS (see esbuild.config.mjs) and then
+ * prefixed so every selector lives under `.annado-root`. That gives us two
+ * guarantees inside Obsidian:
+ *
+ *   1. Annado's Tailwind utilities + reset can't leak out into Obsidian's UI.
+ *   2. Obsidian's theme CSS can't easily override Annado (our rules carry the
+ *      extra `.annado-root` specificity).
+ *
+ * We import `tailwindcss/theme` + `tailwindcss/utilities` rather than the full
+ * `tailwindcss` bundle so the global preflight isn't pulled in twice — the
+ * scoped-preflight plugin below re-emits preflight, confined to `.annado-root`.
+ */
+@import "tailwindcss/theme";
+@import "tailwindcss/utilities";
+
+/*
+ * Generate utilities from the shared UI source (repo root src/). Tailwind v4
+ * auto-detects content relative to the stylesheet by default, which would only
+ * scan apps/obsidian; the actual class names live in the shared React app.
+ */
+@source "../../../src/**/*.{ts,tsx}";
+
+/*
+ * Scope Tailwind's opinionated reset to the Annado subtree. `inside` means the
+ * reset only applies within `.annado-root`; `root-styles: move to container`
+ * rewrites preflight's `html`/`body`/`*` rules onto `.annado-root` itself so
+ * they never touch Obsidian's own document.
+ */
+@plugin "tailwindcss-scoped-preflight" {
+  isolation-strategy: inside;
+  selector: .annado-root;
+  root-styles: move to container;
+}
+
+@theme {
+  --color-primary: #5C6BC0;
+  --color-primary-dark: #5162B0;
+  --color-primary-light: #7986CB;
+  --color-danger: #E53935;
+  --color-danger-dark: #C62828;
+  --color-success: #43A047;
+  --color-warning: #F5C000;
+}
+
+/* Enable class-based dark mode instead of media query.
+   Obsidian toggles `.theme-dark` on <body>; the shared UI's useTheme() hook
+   toggles `.dark` on <html>. We honour either so dark mode follows whichever
+   host is driving it. */
+@custom-variant dark (&:where(.dark, .dark *, .theme-dark, .theme-dark *));
+
+/*
+ * Bundle the UI font. Obsidian runs on Windows/Linux/mobile where SF Pro is
+ * absent, so we ship Inter (a metrics-compatible neo-grotesque) inlined as a
+ * data URI — the font is base64-replaced into this file at build time. Inter
+ * sits first in the stack; the original system fonts remain as fallbacks.
+ */
+@font-face {
+  font-family: 'Annado Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('__ANNADO_INTER_WOFF2__') format('woff2');
+}
+
+/*
+ * App-root styling. In src/App.css these live on :root / html / body / #root;
+ * here they hang off `.annado-root` because that container *is* the app's root
+ * inside a leaf. A leaf is a sub-pane, not the viewport, so the app fills 100%
+ * of the container rather than 100vh (see the `h-screen` override below).
+ */
+.annado-root {
+  font-family: 'Annado Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI Variable Text', 'Segoe UI', 'Helvetica Neue', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: subpixel-antialiased;
+
+  margin: 0;
+  padding: 0;
+  /* Keep content above the iPhone home indicator (0 everywhere else). */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/*
+ * Hosted-in-a-leaf sizing. AnnadoView mounts the React root in a leaf and tags
+ * the container with data-annado-host="obsidian-leaf". A leaf is a sub-pane,
+ * not the viewport, so the container fills 100% of the pane (not 100vh) and the
+ * shared App's `h-screen` (= 100vh) shell collapses to the container too.
+ * Without the flag (e.g. the Tauri app) these rules don't apply and the app
+ * keeps its full-viewport sizing.
+ */
+.annado-root[data-annado-host="obsidian-leaf"] {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.annado-root[data-annado-host="obsidian-leaf"] .h-screen {
+  height: 100%;
+}
+
+/* Touch screens (iPad/iPhone/Android tablets): comfortable hit targets. */
+@media (pointer: coarse) {
+  .annado-root button,
+  .annado-root input[type="checkbox"],
+  .annado-root a {
+    min-height: 32px;
+    min-width: 32px;
+  }
+  .annado-root * {
+    -webkit-touch-callout: none;
+  }
+}
+
+/* Smooth transitions */
+.annado-root * {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 120ms;
+}
+
+/* Auto-hide scrollbars — thumb invisible until container is hovered */
+.annado-root ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.annado-root ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.annado-root ::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.annado-root :hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.annado-root :hover::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.annado-root.dark :hover::-webkit-scrollbar-thumb,
+.dark .annado-root :hover::-webkit-scrollbar-thumb,
+.theme-dark .annado-root :hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.annado-root.dark :hover::-webkit-scrollbar-thumb:hover,
+.dark .annado-root :hover::-webkit-scrollbar-thumb:hover,
+.theme-dark .annado-root :hover::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Dark mode color-scheme */
+.annado-root.dark,
+.dark .annado-root,
+.theme-dark .annado-root {
+  color-scheme: dark;
+}
+
+/* Task expand detail section — grid row animation */
+.annado-root .task-expand-detail {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms cubic-bezier(0.4, 0, 1, 1);
+}
+
+.annado-root .task-expand-detail[data-expanded="true"] {
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.annado-root .task-expand-detail > * {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.annado-root .task-expand-detail[data-expanded="true"] > * {
+  overflow: visible;
+}
+
+/* Side panel slide animation */
+.annado-root .side-panel {
+  transition: width 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  overflow: hidden;
+}
+
+/* Selection color */
+.annado-root ::selection {
+  background: color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+
+/* Task completion: row lingers, then collapses and fades out. */
+@keyframes taskCompleteCollapse {
+  0%   { opacity: 1; max-height: 90px; }
+  100% { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; }
+}
+.annado-root .task-completing {
+  overflow: hidden;
+  max-height: 90px;
+  animation: taskCompleteCollapse 280ms cubic-bezier(0.4, 0, 1, 1) 1250ms forwards;
+}
+
+/* Checkbox pop when a task is checked off */
+@keyframes checkboxPop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+.annado-root .checkbox-pop {
+  animation: checkboxPop 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Review flashcard fade-in animation */
+@keyframes reviewFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.annado-root .animate-fade-in {
+  animation: reviewFadeIn 150ms ease-out;
+}
