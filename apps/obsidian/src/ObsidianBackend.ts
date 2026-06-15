@@ -46,11 +46,13 @@ import {
 } from './core';
 
 /** Plugin data persisted via loadData()/saveData(). */
-interface AnnadoData {
+export interface AnnadoData {
   folderPaths?: FolderPaths;
   excludedPaths?: string[];
   icsSubscriptions?: IcsSubscription[];
   notificationPrefs?: unknown;
+  /** Whether ICS calendar subscriptions are surfaced (settings-tab toggle). */
+  calendarEnabled?: boolean;
 }
 
 const DEFAULT_FOLDER_PATHS: FolderPaths = {
@@ -148,6 +150,33 @@ export class ObsidianBackend implements Backend {
   private async patchData(patch: Partial<AnnadoData>): Promise<void> {
     const current = ((await this.plugin.loadData()) as AnnadoData) ?? {};
     await this.plugin.saveData({ ...current, ...patch });
+  }
+
+  /**
+   * Read-only snapshot of persisted plugin data — for the settings tab to
+   * render current values. Forces a fresh load (bypassing the lazy cache).
+   */
+  async readSettings(): Promise<AnnadoData> {
+    return ((await this.plugin.loadData()) as AnnadoData) ?? {};
+  }
+
+  /**
+   * Persist a patch from the settings tab and refresh the in-memory caches so
+   * the next scan reflects the change. Folder/exclusion edits trigger a rescan.
+   */
+  async writeSettings(patch: Partial<AnnadoData>): Promise<void> {
+    await this.patchData(patch);
+    if (patch.folderPaths !== undefined) {
+      this.folderPaths = { ...DEFAULT_FOLDER_PATHS, ...patch.folderPaths };
+    }
+    if (patch.excludedPaths !== undefined) {
+      this.excludedPaths = patch.excludedPaths;
+    }
+  }
+
+  /** Default folder paths (so the settings tab can show placeholders). */
+  static defaultFolderPaths(): FolderPaths {
+    return { ...DEFAULT_FOLDER_PATHS };
   }
 
   // ── Vault scanning ─────────────────────────────────────────────────────
@@ -384,6 +413,254 @@ export class ObsidianBackend implements Backend {
       if (file.basename === name) return file;
     }
     return null;
+  }
+
+  private findProjectFile(name: string): TFile | null {
+    const { projectsPattern, areasPattern } = this.folderPaths;
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      const inProjects = file.path.includes(projectsPattern);
+      const inAreas = !!areasPattern && file.path.includes(areasPattern);
+      if (!inProjects && !inAreas) continue;
+      if (file.basename === name) return file;
+    }
+    return null;
+  }
+
+  /**
+   * The configured Projects/Persons root folder, located by name anywhere in the
+   * vault (mirrors the Tauri `find_or_create_*_root` walk), creating it if absent.
+   */
+  private async findOrCreateRoot(pattern: string): Promise<string> {
+    const folders = this.app.vault.getAllLoadedFiles().filter((f): f is TFolder => f instanceof TFolder);
+    for (const folder of folders) {
+      if (folder.path.split('/').some((seg) => seg.startsWith('.'))) continue;
+      if (folder.name.includes(pattern)) return folder.path;
+    }
+    const root = normalizePath(pattern);
+    await this.ensureFolder(root);
+    return root;
+  }
+
+  /** Build a `---`-delimited YAML block from pre-rendered lines (or '' when empty). */
+  private static frontmatterBlock(lines: string[]): string {
+    if (lines.length === 0) return '';
+    return `---\n${lines.join('\n')}\n---\n\n`;
+  }
+
+  private async createProject(
+    name: string,
+    parentFolder: string | null,
+    meta: {
+      description?: string | null;
+      deadline?: string | null;
+      persons?: string[];
+      milestones?: Array<{ name: string; end?: string | null }>;
+    },
+  ): Promise<ProjectInfo> {
+    await this.data();
+    const safeName = sanitizeProjectName(name);
+    if (!safeName) throw new Error('Project name is empty after sanitization');
+
+    const root = await this.findOrCreateRoot(this.folderPaths.projectsPattern);
+    let targetDir = root;
+    if (parentFolder) {
+      const safeParent = sanitizeProjectName(parentFolder);
+      targetDir = normalizePath(`${root}/${safeParent}`);
+      await this.ensureFolder(targetDir);
+    }
+    const path = normalizePath(`${targetDir}/${safeName}.md`);
+    if (this.app.vault.getFileByPath(path)) {
+      throw new Error(`Project '${safeName}' already exists`);
+    }
+
+    // Mirror the Tauri create_project_file frontmatter schema exactly.
+    const lines: string[] = [];
+    const desc = meta.description?.trim();
+    if (desc) lines.push(`description: ${desc}`);
+    const dl = meta.deadline?.trim();
+    if (dl) lines.push(`date_deadline: ${dl}`);
+    const persons = meta.persons ?? [];
+    if (persons.length > 0) {
+      lines.push('persons:');
+      for (const p of persons) lines.push(`  - "[[${p}]]"`);
+    }
+    const milestones = meta.milestones ?? [];
+    if (milestones.length > 0) {
+      lines.push('milestones:');
+      for (const m of milestones) {
+        lines.push(`  - name: ${m.name}`);
+        if (m.end) lines.push(`    end: ${m.end}`);
+        lines.push('    completed: false');
+      }
+    }
+
+    const content = `${ObsidianBackend.frontmatterBlock(lines)}# ${safeName}\n`;
+    const file = await this.app.vault.create(path, content);
+
+    const depth = parentFolder ? 1 : 0;
+    // Build the returned metadata from the inputs we just wrote — the
+    // metadataCache may not have parsed the brand-new file yet.
+    return {
+      name: safeName,
+      path: file.path,
+      depth,
+      parentFolder: parentFolder ? sanitizeProjectName(parentFolder) : null,
+      metadata: {
+        description: desc ?? null,
+        deadline: dl ?? null,
+        startDate: null,
+        ranking: null,
+        persons,
+        up: null,
+        milestones: milestones.map((m) => ({
+          name: m.name,
+          start: null,
+          end: m.end ?? null,
+          completed: false,
+        })),
+      },
+    };
+  }
+
+  private async renameProject(oldName: string, newName: string): Promise<ProjectInfo> {
+    const safeNew = sanitizeProjectName(newName);
+    if (!safeNew) throw new Error('New project name is empty');
+
+    const file = this.findProjectFile(oldName);
+    if (!file) throw new Error(`Project '${oldName}' not found`);
+
+    const slash = file.path.lastIndexOf('/');
+    const dir = slash >= 0 ? file.path.slice(0, slash) : '';
+    const newPath = normalizePath(dir ? `${dir}/${safeNew}.md` : `${safeNew}.md`);
+    if (this.app.vault.getFileByPath(newPath)) {
+      throw new Error(`Project '${safeNew}' already exists`);
+    }
+
+    // renameFile rewrites every [[wikilink]] vault-wide — replacing the Tauri
+    // replace_wikilink_across_vault walk with Obsidian's own link maintenance.
+    await this.app.fileManager.renameFile(file, newPath);
+
+    const { projectsPattern } = this.folderPaths;
+    const parts = newPath.split('/');
+    const idx = parts.findIndex((p) => p.includes(projectsPattern) && !p.endsWith('.md'));
+    const depth = idx >= 0 && parts.length > idx + 2 ? parts.length - idx - 2 : 0;
+    const parentFolder = depth > 0 ? (parts[parts.length - 2] ?? null) : null;
+
+    return {
+      name: safeNew,
+      path: newPath,
+      depth,
+      parentFolder,
+      metadata: this.parseProjectMetadata(file),
+    };
+  }
+
+  private async updateProjectMetadata(payload: {
+    projectName: string;
+    description: string | null;
+    deadline: string | null;
+    startDate: string | null;
+    ranking: string | null;
+    persons: string[];
+    up: string | null;
+    milestones: Milestone[];
+  }): Promise<void> {
+    const file = this.findProjectFile(payload.projectName);
+    if (!file) throw new Error(`Could not find project file for: ${payload.projectName}`);
+
+    await this.app.fileManager.processFrontMatter(file, (fm) => {
+      const setOrDelete = (key: string, value: string | null) => {
+        if (value != null && value !== '') fm[key] = value;
+        else delete fm[key];
+      };
+      setOrDelete('description', payload.description);
+      setOrDelete('date_deadline', payload.deadline);
+      setOrDelete('date_start', payload.startDate);
+      setOrDelete('ranking', payload.ranking);
+      setOrDelete('up', payload.up);
+
+      // Drop legacy aliases so the canonical keys above are authoritative.
+      for (const legacy of ['deadline', 'due', 'due_date', 'start', 'start_date', 'started']) {
+        delete fm[legacy];
+      }
+
+      if (payload.persons.length > 0) {
+        fm.persons = payload.persons.map((p) => `[[${p}]]`);
+      } else {
+        delete fm.persons;
+      }
+
+      if (payload.milestones.length > 0) {
+        fm.milestones = payload.milestones.map((m) => {
+          const out: Record<string, unknown> = { name: m.name };
+          if (m.end != null) out.end = m.end;
+          out.completed = m.completed;
+          return out;
+        });
+      } else {
+        delete fm.milestones;
+      }
+    });
+  }
+
+  private async createPerson(
+    name: string,
+    meta: {
+      organisation?: string | null;
+      relationship?: string | null;
+      languages?: string[];
+      projects?: string[];
+    },
+  ): Promise<PersonInfo> {
+    await this.data();
+    const safeName = sanitizeProjectName(name);
+    if (!safeName) throw new Error('Person name is empty after sanitization');
+
+    const root = await this.findOrCreateRoot(this.folderPaths.personsPattern);
+    const path = normalizePath(`${root}/${safeName}.md`);
+    if (this.app.vault.getFileByPath(path)) {
+      throw new Error(`Person '${safeName}' already exists`);
+    }
+
+    // Mirror the Tauri create_person_file frontmatter schema exactly.
+    const lines: string[] = [];
+    const org = meta.organisation?.trim();
+    if (org) lines.push(`organisation: ${org}`);
+    const rel = meta.relationship?.trim();
+    if (rel) lines.push(`relationship: ${rel}`);
+    const languages = meta.languages ?? [];
+    if (languages.length > 0) {
+      lines.push('languages:');
+      for (const lang of languages) lines.push(`  - ${lang}`);
+    }
+    const projects = meta.projects ?? [];
+    if (projects.length > 0) {
+      lines.push('projects:');
+      for (const proj of projects) lines.push(`  - "[[${proj}]]"`);
+    }
+
+    const content = `${ObsidianBackend.frontmatterBlock(lines)}# ${safeName}\n`;
+    const file = await this.app.vault.create(path, content);
+
+    return { name: safeName, path: file.path };
+  }
+
+  private async renamePerson(oldName: string, newName: string): Promise<PersonInfo> {
+    const safeNew = sanitizeProjectName(newName);
+    if (!safeNew) throw new Error('New person name is empty');
+
+    const file = this.findPersonFile(oldName);
+    if (!file) throw new Error(`Person '${oldName}' not found`);
+
+    const slash = file.path.lastIndexOf('/');
+    const dir = slash >= 0 ? file.path.slice(0, slash) : '';
+    const newPath = normalizePath(dir ? `${dir}/${safeNew}.md` : `${safeNew}.md`);
+    if (this.app.vault.getFileByPath(newPath)) {
+      throw new Error(`Person '${safeNew}' already exists`);
+    }
+
+    await this.app.fileManager.renameFile(file, newPath);
+    return { name: safeNew, path: newPath };
   }
 
   private parsePersonMetadata(file: TFile): PersonMetadata {
@@ -928,7 +1205,13 @@ export class ObsidianBackend implements Backend {
     await this.patchData({ icsSubscriptions: subs.filter((s) => s.id !== id) });
   }
 
+  /** Calendars are off only when the settings-tab toggle is explicitly false. */
+  private async calendarEnabled(): Promise<boolean> {
+    return (await this.data()).calendarEnabled !== false;
+  }
+
   private async getCalendars(): Promise<CalendarInfo[]> {
+    if (!(await this.calendarEnabled())) return [];
     return subscription_calendars(await this.getIcsSubscriptions());
   }
 
@@ -937,6 +1220,7 @@ export class ObsidianBackend implements Backend {
     startDate: string;
     endDate: string;
   }): Promise<CalendarEvent[]> {
+    if (!(await this.calendarEnabled())) return [];
     const subs = await this.getIcsSubscriptions();
     const wanted = new Set(args.calendarNames);
     const events: CalendarEvent[] = [];
@@ -1005,17 +1289,45 @@ export class ObsidianBackend implements Backend {
         await this.deleteTaskById(a.id as string);
         return undefined as unknown as T;
 
-      // ---- Projects & persons (writes) ----------------------------------
-      // Creating/renaming notes + editing project frontmatter is deferred to a
-      // later PR (PR 6); the read paths above already surface them. Kept as
-      // explicit no-ops so the UI doesn't error.
-      case 'create_project':
-      case 'rename_project':
-      case 'update_project_metadata':
-      case 'create_person':
-      case 'rename_person':
-        console.warn(`[Annado] ${command} is not yet implemented in the Obsidian backend`);
+      // ---- Projects & persons (writes via the Vault API) ----------------
+      // Note files + frontmatter are file ops Obsidian does better than the
+      // WASM core; renames lean on fileManager.renameFile for vault-wide
+      // [[wikilink]] maintenance (replacing the Tauri cross-vault walk).
+      case 'create_project': {
+        const p = a.payload as {
+          name: string;
+          parentFolder?: string | null;
+          description?: string | null;
+          deadline?: string | null;
+          persons?: string[];
+          milestones?: Array<{ name: string; end?: string | null }>;
+        };
+        return (await this.createProject(p.name, p.parentFolder ?? null, p)) as unknown as T;
+      }
+      case 'rename_project': {
+        const p = a.payload as { oldName: string; newName: string };
+        return (await this.renameProject(p.oldName, p.newName)) as unknown as T;
+      }
+      case 'update_project_metadata': {
+        await this.updateProjectMetadata(
+          a.payload as Parameters<ObsidianBackend['updateProjectMetadata']>[0],
+        );
         return undefined as unknown as T;
+      }
+      case 'create_person': {
+        const p = a.payload as {
+          name: string;
+          organisation?: string | null;
+          relationship?: string | null;
+          languages?: string[];
+          projects?: string[];
+        };
+        return (await this.createPerson(p.name, p)) as unknown as T;
+      }
+      case 'rename_person': {
+        const p = a.payload as { oldName: string; newName: string };
+        return (await this.renamePerson(p.oldName, p.newName)) as unknown as T;
+      }
 
       // ---- Recurring templates ------------------------------------------
       case 'get_all_recurring_templates':
@@ -1282,4 +1594,24 @@ function generateTemplateId(): string {
 /** Filesystem-safe filename stem (mirrors the Tauri `sanitize_filename`). */
 function sanitizeFilename(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, '-').trim() || 'untitled';
+}
+
+const WINDOWS_RESERVED = new Set([
+  'con', 'prn', 'aux', 'nul',
+  'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9',
+  'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9',
+]);
+
+/**
+ * Project/person filename stem — mirrors the Tauri vault `sanitize_filename`:
+ * keep alphanumerics, spaces, `-` and `_`; replace everything else with `_`;
+ * trim; and guard Windows reserved device names (vaults sync cross-platform).
+ */
+function sanitizeProjectName(name: string): string {
+  const sanitized = [...name]
+    .map((c) => (/[\p{L}\p{N}]/u.test(c) || c === ' ' || c === '-' || c === '_' ? c : '_'))
+    .join('')
+    .trim();
+  if (WINDOWS_RESERVED.has(sanitized.toLowerCase())) return `${sanitized}_`;
+  return sanitized;
 }
