@@ -3,12 +3,14 @@ import {
   type Hotkey,
   type Modifier,
   Notice,
+  Platform,
   Plugin,
   PluginSettingTab,
   Setting,
   WorkspaceLeaf,
 } from 'obsidian';
 import { setBackend } from '@app/backend';
+import { setForcedNarrow } from '@app/hooks/useIsNarrow';
 import { useTaskStore } from '@app/stores/taskStore';
 import { KEYBINDING_DEFAULTS } from '@app/utils/keybindings';
 import type { ViewType } from '@app/types/task';
@@ -56,6 +58,12 @@ export default class AnnadoPlugin extends Plugin {
     this.backend = new ObsidianBackend(this.app, this);
     setBackend(this.backend);
 
+    // On a phone the shared UI should use its narrow (drawer/sheet) layout even
+    // though an Obsidian leaf can be wider than the width breakpoint. Obsidian's
+    // `Platform.isPhone` is authoritative here; feed it through the host-agnostic
+    // seam so `src/` never has to import `obsidian`.
+    setForcedNarrow(Platform.isPhone);
+
     this.registerView(VIEW_TYPE_ANNADO, (leaf) => new AnnadoView(leaf));
 
     this.addRibbonIcon('check-circle', 'Open Annado', () => {
@@ -76,8 +84,14 @@ export default class AnnadoPlugin extends Plugin {
   }
 
   onunload(): void {
-    // Detaching the leaves triggers AnnadoView.onClose(), which unmounts React.
+    // Detaching the leaves triggers AnnadoView.onClose(), which unmounts React
+    // and (via the store's effect cleanup) detaches the vault listeners.
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_ANNADO);
+    // Belt-and-suspenders: force-detach any vault listeners / pending timers the
+    // backend still holds, so nothing outlives the plugin if a leaf was detached
+    // without a clean React unmount. The reminder interval is registered via
+    // `registerInterval`, so Obsidian clears that one automatically.
+    this.backend.teardown();
   }
 
   /**

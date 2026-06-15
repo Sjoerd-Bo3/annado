@@ -130,9 +130,27 @@ export class ObsidianBackend implements Backend {
   private excludedPaths: string[] = [];
   private dataLoaded = false;
 
+  /**
+   * Teardown callbacks for everything this backend registers (vault event
+   * listeners + their debounce timers). The shared React tree already calls the
+   * `UnlistenFn` returned by {@link listen} on unmount, but the plugin also
+   * calls {@link teardown} from `onunload` so listeners can never outlive the
+   * plugin even if a leaf is detached without a clean React unmount.
+   */
+  private disposers = new Set<() => void>();
+
   constructor(app: App, plugin: Plugin) {
     this.app = app;
     this.plugin = plugin;
+  }
+
+  /**
+   * Detach every vault listener and clear any pending timers this backend owns.
+   * Idempotent — safe to call from both the React unmount path and `onunload`.
+   */
+  teardown(): void {
+    for (const dispose of this.disposers) dispose();
+    this.disposers.clear();
   }
 
   // ── Plugin data (loadData/saveData) ────────────────────────────────────
@@ -879,7 +897,7 @@ export class ObsidianBackend implements Backend {
   /** Read Obsidian's own daily-notes config (`.obsidian/daily-notes.json`), if any. */
   private async readObsidianDailyNotes(): Promise<{ folder: string; format: string } | null> {
     try {
-      const path = `${this.app.vault.configDir}/daily-notes.json`;
+      const path = normalizePath(`${this.app.vault.configDir}/daily-notes.json`);
       if (!(await this.app.vault.adapter.exists(path))) return null;
       const raw = await this.app.vault.adapter.read(path);
       const cfg = JSON.parse(raw) as { folder?: string; format?: string };
@@ -1465,10 +1483,18 @@ export class ObsidianBackend implements Backend {
         this.app.vault.on('rename', fire),
       ];
 
-      return () => {
+      let disposed = false;
+      const dispose = () => {
+        if (disposed) return;
+        disposed = true;
         if (timer) clearTimeout(timer);
         for (const ref of refs) this.app.vault.offref(ref);
+        this.disposers.delete(dispose);
       };
+      // Tracked so `teardown()` (called from the plugin's `onunload`) can detach
+      // these even if the React unmount path doesn't run.
+      this.disposers.add(dispose);
+      return dispose;
     }
 
     // global-quickadd / tray-open-task / deep-link-received: not applicable.
