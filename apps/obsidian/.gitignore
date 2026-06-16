@@ -1,3 +1,10 @@
-# esbuild bundle output (generated from src/main.ts)
-main.js
-main.js.map
+# esbuild bundle output (generated from src/main.ts).
+# Anchored to this directory so the src/ sources of the same name stay tracked.
+/main.js
+/main.js.map
+
+# PostCSS output (generated from src/styles.css by esbuild.config.mjs)
+/styles.css
+
+# installed by `npm install` in this workspace
+node_modules
