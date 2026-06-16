@@ -59,7 +59,9 @@ core. From the repository root:
 
 ```sh
 # 1. Build the Rust → WASM core (emits packages/core/pkg/, which is git-ignored).
-wasm-pack build packages/core --target web --out-dir pkg
+#    --features wasm is REQUIRED: it gates the #[wasm_bindgen] exports. Without
+#    it the bindings export nothing and the plugin fails at runtime.
+wasm-pack build packages/core --target web --out-dir pkg --features wasm
 
 # 2. Install the plugin's build tooling.
 cd apps/obsidian
@@ -77,7 +79,7 @@ which is exactly what Obsidian loads — no copy step is required.
 
 ### Bundle size
 
-The production `main.js` is roughly **700 KB** (about 717 KB, ~716,894 bytes).
+The production `main.js` is roughly **4.3 MB** — dominated by the base64-inlined WASM core (~2.7 MB `.wasm`) plus the React UI. `styles.css` is ~178 KB. (An earlier ~700 KB figure reflected a build where the core's `wasm` feature was not enabled — see step 1.)
 The size is dominated by the inlined WebAssembly core (shipped as base64 so the
 engine needs no runtime fetch and works offline / on mobile) plus the bundled
 React UI.
