@@ -1,0 +1,17 @@
+{
+  "name": "annado-core",
+  "type": "module",
+  "description": "Pure markdown task engine for Annado: parser, recurrence math, and ICS expansion. Compiles to native and wasm32-unknown-unknown.",
+  "version": "0.1.0",
+  "license": "MIT",
+  "files": [
+    "annado_core_bg.wasm",
+    "annado_core.js",
+    "annado_core.d.ts"
+  ],
+  "main": "annado_core.js",
+  "types": "annado_core.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

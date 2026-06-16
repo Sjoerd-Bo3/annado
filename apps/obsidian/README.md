@@ -52,13 +52,27 @@ On a phone Annado uses its narrow drawer/sheet layout, driven by Obsidian's
 Configure your folder conventions (Projects / Areas / Persons / Daily notes),
 excluded paths, and ICS calendar subscriptions in the plugin's settings tab.
 
-## Build from source
+## Quick test (no Rust required — this branch only)
 
-The plugin bundles the shared UI from the repo root (`src/`) and the Rust → WASM
-core. From the repository root:
+For convenience on the `claude/pivot-testable` branch, the prebuilt WASM core
+(`packages/core/pkg/`) is **committed**, so you can build the plugin with just
+Node — no Rust / wasm-pack needed:
 
 ```sh
-# 1. Build the Rust → WASM core (emits packages/core/pkg/, which is git-ignored).
+npm install                                # repo root: shared React UI deps
+cd apps/obsidian && npm install && npm run build   # -> main.js + styles.css
+```
+
+Then copy `main.js`, `manifest.json`, `styles.css`, and `versions.json` into
+`<your-vault>/.obsidian/plugins/annado/` and enable it (see "Install" above).
+
+## Build from source (rebuilding the WASM core)
+
+To regenerate the core yourself you need the Rust toolchain + `wasm-pack`
+(`cargo install wasm-pack`, or `brew install wasm-pack`). From the repository root:
+
+```sh
+# 1. Build the Rust → WASM core (emits packages/core/pkg/).
 #    --features wasm is REQUIRED: it gates the #[wasm_bindgen] exports. Without
 #    it the bindings export nothing and the plugin fails at runtime.
 wasm-pack build packages/core --target web --out-dir pkg --features wasm
