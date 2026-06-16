@@ -31,3 +31,7 @@ dist-ssr
 
 # Git worktrees
 .worktrees
+
+# Local Claude Code state (agent worktrees, session artifacts)
+.claude/
+
